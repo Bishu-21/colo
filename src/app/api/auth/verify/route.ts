@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({ success: true, role: type });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "VERIFICATION_SYSTEM_ERROR" },
       { status: 500 }

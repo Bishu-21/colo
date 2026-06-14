@@ -50,10 +50,11 @@ export async function POST(request: Request) {
       currency: order.currency,
       mock: false,
     });
-  } catch (error: any) {
-    console.error("[PAYMENT_ERROR] Razorpay Order Creation failed:", error);
+  } catch (error) {
+    const err = error as Error;
+    console.error("[PAYMENT_ERROR] Razorpay Order Creation failed:", err);
     return NextResponse.json(
-      { error: "GATEWAY_INITIALIZATION_ERROR", details: error.message },
+      { error: "GATEWAY_INITIALIZATION_ERROR", details: err.message },
       { status: 500 }
     );
   }

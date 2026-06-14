@@ -2,7 +2,27 @@
 
 import React, { useState } from "react";
 import Script from "next/script";
-import Link from "next/link";
+
+interface RazorpayResponse {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+interface RazorpayErrorResponse {
+  error: {
+    description: string;
+  };
+}
+
+interface RazorpayInstance {
+  on: (event: string, callback: (res: RazorpayErrorResponse) => void) => void;
+  open: () => void;
+}
+
+interface CustomWindow extends Window {
+  Razorpay?: new (options: unknown) => RazorpayInstance;
+}
 
 interface Plan {
   id: string;
@@ -87,7 +107,7 @@ export default function BillingHub() {
         name: "Pre-Flight Compiler",
         description: selectedPlan.name,
         order_id: orderData.orderId,
-        handler: async function (response: any) {
+        handler: async function (response: RazorpayResponse) {
           // Verify payment on the server
           const verifyRes = await fetch("/api/payment/verify", {
             method: "POST",
@@ -118,14 +138,19 @@ export default function BillingHub() {
       };
 
       // 3. Launch Razorpay Checkout Modal
-      const rzp = new (window as any).Razorpay(options);
-      rzp.on("payment.failed", function (response: any) {
+      const customWindow = window as unknown as CustomWindow;
+      if (!customWindow.Razorpay) {
+        throw new Error("Razorpay SDK not loaded");
+      }
+      const rzp = new customWindow.Razorpay(options);
+      rzp.on("payment.failed", function (response: RazorpayErrorResponse) {
         alert(`TRANSACTION_FAILED: ${response.error.description}`);
       });
       rzp.open();
-    } catch (err: any) {
-      console.error(err);
-      alert(`Razorpay Sandbox Alert: ${err.message || "Failed to initialize gateway"}`);
+    } catch (err) {
+      const error = err as Error;
+      console.error(error);
+      alert(`Razorpay Sandbox Alert: ${error.message || "Failed to initialize gateway"}`);
     } finally {
       setIsProcessingPayment(false);
     }

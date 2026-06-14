@@ -1,257 +1,391 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 
-interface Tenant {
-  id: string;
-  tier: string;
-  status: "FLAGGED" | "NOMINAL" | "RESTRICTED";
-  quota: number;
+interface DiagnosticReport {
+  userAgent: string;
+  onLine: boolean;
+  cores: number | string;
+  memory: number | string;
+  localStorageOk: boolean;
+  sessionStorageOk: boolean;
+  indexedDbOk: boolean;
+  wasmOk: boolean;
+  wasmCompileTimeMs: number | null;
+  performanceLatencyMs: number | null;
 }
 
 export default function OpsPage() {
-  const [tenants, setTenants] = useState<Tenant[]>([
-    { id: "XA-449", tier: "Enterprise Platinum", status: "FLAGGED", quota: 98 },
-    { id: "BC-001", tier: "Public_Dev", status: "NOMINAL", quota: 12 },
-    { id: "KR-882", tier: "Internal_Staff", status: "RESTRICTED", quota: 0 }
-  ]);
-
+  const [diagnostics, setDiagnostics] = useState<DiagnosticReport | null>(null);
+  const [fps, setFps] = useState<number>(60);
+  const [fpsHistory, setFpsHistory] = useState<number[]>(Array(30).fill(60));
   const [cmdInput, setCmdInput] = useState("");
   const [consoleLog, setConsoleLog] = useState<string[]>([
-    "SYS_INIT: Booting ops core...",
-    "SYS_STATUS: Secure cluster Alpha mapped successfully.",
-    "LAST_CMD: list --containers // RESULT: 204 Found // TIMESTAMP: 12:44:01"
+    "COLO DIAGNOSTICS: Booting runtime checker...",
+    "TYPE 'help' FOR LIST OF CAPABILITY ACTIONS.",
+    "READY."
   ]);
 
-  const handleCommandSubmit = (e: React.FormEvent) => {
+  // Frame monitor (real FPS counter)
+  useEffect(() => {
+    let frameCount = 0;
+    let lastTime = performance.now();
+    let animId: number;
+
+    const tick = () => {
+      frameCount++;
+      const now = performance.now();
+      const delta = now - lastTime;
+      if (delta >= 1000) {
+        const calculatedFps = Math.min(60, Math.round((frameCount * 1000) / delta));
+        setFps(calculatedFps);
+        setFpsHistory((prev) => [...prev.slice(1), calculatedFps]);
+        frameCount = 0;
+        lastTime = now;
+      }
+      animId = requestAnimationFrame(tick);
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  // Browser capability checks
+  const runChecks = async (): Promise<DiagnosticReport> => {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "Unknown";
+    const online = typeof navigator !== "undefined" ? navigator.onLine : false;
+    const cores = typeof navigator !== "undefined" ? navigator.hardwareConcurrency || "Unknown" : "Unknown";
+    
+    // @ts-expect-error - deviceMemory is a non-standard browser property not in standard types
+    const memory = typeof navigator !== "undefined" ? navigator.deviceMemory || "Unknown" : "Unknown";
+
+    let localStorageOk = false;
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        localStorage.setItem("__test__", "ok");
+        localStorageOk = localStorage.getItem("__test__") === "ok";
+        localStorage.removeItem("__test__");
+      }
+    } catch {}
+
+    let sessionStorageOk = false;
+    try {
+      if (typeof window !== "undefined" && window.sessionStorage) {
+        sessionStorage.setItem("__test__", "ok");
+        sessionStorageOk = sessionStorage.getItem("__test__") === "ok";
+        sessionStorage.removeItem("__test__");
+      }
+    } catch {}
+
+    const indexedDbOk = typeof window !== "undefined" && !!window.indexedDB;
+    
+    const wasmOk = typeof WebAssembly === "object" && typeof WebAssembly.compile === "function";
+    let wasmCompileTimeMs: number | null = null;
+    if (wasmOk) {
+      try {
+        const start = performance.now();
+        // Compile smallest valid WebAssembly binary (8 bytes header)
+        const bytes = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
+        await WebAssembly.compile(bytes);
+        wasmCompileTimeMs = Math.round((performance.now() - start) * 100) / 100;
+      } catch {
+        wasmCompileTimeMs = null;
+      }
+    }
+
+    let performanceLatencyMs: number | null = null;
+    try {
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => resolve();
+        channel.port2.postMessage(null);
+      });
+      performanceLatencyMs = Math.round((performance.now() - start) * 100) / 100;
+    } catch {}
+
+    return {
+      userAgent: ua,
+      onLine: online,
+      cores,
+      memory,
+      localStorageOk,
+      sessionStorageOk,
+      indexedDbOk,
+      wasmOk,
+      wasmCompileTimeMs,
+      performanceLatencyMs
+    };
+  };
+
+  useEffect(() => {
+    runChecks().then((report) => {
+      setDiagnostics(report);
+      setConsoleLog((prev) => [
+        ...prev,
+        `SYS_INFO: WebAssembly check -> ${report.wasmOk ? `SUPPORTED (Compile test: ${report.wasmCompileTimeMs}ms)` : "UNSUPPORTED"}.`,
+        `SYS_INFO: CPU Threads Detected -> ${report.cores}.`,
+        `SYS_INFO: Device Memory -> ${report.memory} GB.`
+      ]);
+    });
+  }, []);
+
+  const handleCommandSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cmdInput) return;
 
-    const cmd = cmdInput.trim();
+    const cmd = cmdInput.trim().toLowerCase();
     let response = "";
 
-    if (cmd === "reboot" || cmd.startsWith("reboot")) {
-      response = "reboot: Executing secure cluster teardown sequence... Cluster reboot initiated.";
-    } else if (cmd === "status") {
-      response = "status: Core nominal. Temperature: 32C. CPU Load: 84.2%. Worker thread pool: OK.";
-    } else if (cmd === "help") {
-      response = "Available ops commands: help, reboot, status, wipe-cache, list-tenants";
-    } else if (cmd === "wipe-cache") {
-      response = "wipe-cache: Purging ephemeral memory disks... Wiped 4.2 GB files successfully.";
-    } else if (cmd === "list-tenants") {
-      response = `live tenants: ${tenants.map(t => `${t.id}(${t.status})`).join(", ")}`;
+    if (cmd === "help") {
+      response = "Commands: diagnose (run hardware check), wasm-test (run WASM compiler test), clear-cache (wipe local storage tests), latency-test (profile loop lag), system (dump browser platform metadata).";
+    } else if (cmd === "diagnose") {
+      const report = await runChecks();
+      setDiagnostics(report);
+      response = `diagnose: Core healthy. WASM=${report.wasmOk ? "OK" : "NO"}, Latency=${report.performanceLatencyMs}ms, Storage=${report.localStorageOk ? "OK" : "ERR"}, IndexedDB=${report.indexedDbOk ? "OK" : "ERR"}`;
+    } else if (cmd === "wasm-test") {
+      if (typeof WebAssembly !== "object") {
+        response = "wasm-test: Failed. WebAssembly is unsupported in this browser.";
+      } else {
+        const times: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          const start = performance.now();
+          const bytes = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]);
+          await WebAssembly.compile(bytes);
+          times.push(performance.now() - start);
+        }
+        const avg = Math.round((times.reduce((a, b) => a + b, 0) / 5) * 100) / 100;
+        response = `wasm-test: Completed 5 cycles. Average compilation delay: ${avg}ms.`;
+      }
+    } else if (cmd === "clear-cache") {
+      localStorage.clear();
+      sessionStorage.clear();
+      response = "clear-cache: Cleared all application localStorage and sessionStorage variables successfully.";
+    } else if (cmd === "latency-test") {
+      const start = performance.now();
+      await new Promise<void>((resolve) => {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = () => resolve();
+        channel.port2.postMessage(null);
+      });
+      const lag = Math.round((performance.now() - start) * 100) / 100;
+      response = `latency-test: Microtask event loop roundtrip is ${lag}ms.`;
+    } else if (cmd === "system") {
+      response = `system: UserAgent="${navigator.userAgent}", Language="${navigator.language}", Cores=${navigator.hardwareConcurrency || "N/A"}`;
     } else {
       response = `err: Command '${cmd}' unrecognized. Enter 'help' for options.`;
     }
 
-    setConsoleLog(prev => [...prev, `staff@core_admin:~$ ${cmd}`, response]);
+    setConsoleLog((prev) => [...prev, `user@colo_client:~$ ${cmd}`, response]);
     setCmdInput("");
   };
 
-  const overrideTenant = (id: string) => {
-    setTenants(prev =>
-      prev.map(t => (t.id === id ? { ...t, status: "NOMINAL", quota: 50 } : t))
-    );
-    alert(`Ops Override: Quota limits reset for tenant ${id}.`);
-  };
-
-  const restoreTenant = (id: string) => {
-    setTenants(prev =>
-      prev.map(t => (t.id === id ? { ...t, status: "NOMINAL" } : t))
-    );
-    alert(`Ops Restore: Revoked restrictions for tenant ${id}.`);
-  };
-
   return (
-    <main className="pt-24 pb-20 px-container-padding max-w-[1440px] mx-auto grid grid-cols-12 gap-0 border-x border-outline">
+    <main className="pt-24 pb-20 px-container-padding max-w-[1440px] mx-auto grid grid-cols-12 gap-0 border-x border-outline bg-background">
       {/* Dashboard Header */}
-      <header className="col-span-12 border-b border-outline p-8 flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-container-low">
+      <header className="col-span-12 border border-outline p-6 flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-container-low mb-6 rounded-t">
         <div>
-          <h1 className="font-headline-sm text-headline-sm uppercase tracking-tighter">System Control Dashboard</h1>
-          <p className="font-metadata text-metadata text-secondary mt-1">OPERATOR: STAFF_772 // AUTH_LEVEL: OMEGA</p>
+          <h1 className="font-display-xl text-2xl uppercase tracking-wider text-carbon">Client Capabilities Panel</h1>
+          <p className="font-metadata text-metadata text-secondary mt-1">OPERATOR: LOCAL_USER // BROWSER RUNTIME PROFILE</p>
         </div>
         <div className="mt-4 md:mt-0 flex gap-4">
           <div className="flex flex-col items-end">
-            <span className="font-metadata text-metadata uppercase">Global Load</span>
-            <span className="font-label-bold text-label-bold text-muted-teal">84.2% [NOMINAL]</span>
+            <span className="font-metadata text-[10px] uppercase text-secondary">Browser Mode</span>
+            <span className="font-label-bold text-xs text-primary">SANDBOX SECURE</span>
           </div>
           <div className="flex flex-col items-end border-l border-outline-variant pl-4">
-            <span className="font-metadata text-metadata uppercase">Active Workers</span>
-            <span className="font-label-bold text-label-bold text-primary">1,024 / 1,024</span>
+            <span className="font-metadata text-[10px] uppercase text-secondary">Network Status</span>
+            <span className="font-label-bold text-xs text-primary uppercase">
+              {diagnostics?.onLine ? "ONLINE" : "OFFLINE / LOCAL"}
+            </span>
           </div>
         </div>
       </header>
 
-      {/* System Health */}
-      <section className="col-span-12 md:col-span-8 border-b md:border-r border-outline relative">
-        <div className="p-6 border-b border-outline bg-surface-muted flex justify-between items-center bg-white">
-          <h2 className="font-label-bold text-label-bold uppercase tracking-widest flex items-center gap-2">
-            <span className="material-symbols-outlined text-muted-teal">pause</span>
-            [SYSTEM_HEALTH]
+      {/* Main Diagnostics Grid */}
+      <section className="col-span-12 md:col-span-8 border border-outline border-b-0 md:border-r-0 relative bg-white">
+        <div className="p-4 border-b border-outline bg-neutral-50 flex justify-between items-center">
+          <h2 className="font-label-bold text-xs uppercase tracking-widest flex items-center gap-2 text-carbon">
+            <span className="material-symbols-outlined text-primary text-sm">tune</span>
+            [CLIENT_HEALTH_METRICS]
           </h2>
-          <span className="font-metadata text-metadata text-secondary">REFRESH_RATE: 500ms</span>
+          <span className="font-metadata text-[9px] text-secondary">REFRESH RATE: REALTIME</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-0 bg-white">
-          {/* Latency Graph Simulated */}
-          <div className="col-span-2 p-8 border-b border-outline h-64 relative overflow-hidden group hover:bg-carbon hover:text-white transition-colors duration-100 cursor-crosshair">
-            <div className="flex justify-between font-metadata text-metadata uppercase mb-4">
-              <span>Latency Output (ms)</span>
-              <span className="text-error font-bold animate-pulse">ALERT: NODE_3 SPIKE</span>
+        <div className="grid grid-cols-2 gap-0">
+          {/* Framerate Graph */}
+          <div className="col-span-2 p-6 border-b border-outline h-56 relative overflow-hidden group hover:bg-carbon hover:text-white transition-colors duration-150">
+            <div className="flex justify-between font-metadata text-[10px] uppercase mb-4 text-secondary group-hover:text-neutral-300">
+              <span>Dynamic Framerate History (FPS)</span>
+              <span className="font-bold text-primary group-hover:text-primary-fixed-dim">{fps} FPS ACTIVE</span>
             </div>
-            {/* Visual simulation of high latency spike graph */}
-            <div className="w-full h-32 flex items-end gap-1">
-              <div className="bg-primary/20 w-full h-[20%] group-hover:bg-primary-fixed-dim"></div>
-              <div className="bg-primary/20 w-full h-[25%] group-hover:bg-primary-fixed-dim"></div>
-              <div className="bg-primary/20 w-full h-[22%] group-hover:bg-primary-fixed-dim"></div>
-              <div className="bg-error w-full h-[85%] animate-pulse"></div>
-              <div className="bg-primary/20 w-full h-[15%] group-hover:bg-primary-fixed-dim"></div>
-              <div className="bg-primary/20 w-full h-[30%] group-hover:bg-primary-fixed-dim"></div>
+            
+            {/* Real FPS Graph */}
+            <div className="w-full h-24 flex items-end gap-1 px-1">
+              {fpsHistory.map((val, idx) => {
+                const heightPercent = Math.max(10, Math.round((val / 60) * 100));
+                const isLaggy = val < 45;
+                return (
+                  <div
+                    key={idx}
+                    className={`w-full transition-all duration-300 ${
+                      isLaggy
+                        ? "bg-error"
+                        : "bg-primary/20 group-hover:bg-primary-fixed-dim/60"
+                    }`}
+                    style={{ height: `${heightPercent}%` }}
+                    title={`${val} FPS`}
+                  ></div>
+                );
+              })}
             </div>
-            <div className="absolute bottom-4 left-8 right-8 flex justify-between font-metadata text-metadata text-secondary group-hover:text-surface-variant/55">
-              <span>08:00</span>
-              <span>12:00</span>
-              <span>16:00</span>
-              <span>20:00</span>
+            <div className="absolute bottom-4 left-6 right-6 flex justify-between font-metadata text-[8px] text-secondary group-hover:text-neutral-400">
+              <span>-30 SECONDS</span>
+              <span>-15 SECONDS</span>
               <span>NOW</span>
             </div>
           </div>
 
-          {/* Metrics Grid */}
-          <div className="col-span-1 p-6 border-r border-outline flex flex-col gap-4 hover:bg-carbon group transition-colors cursor-crosshair">
-            <div className="border-l-4 border-muted-teal pl-4">
-              <span className="font-metadata text-metadata uppercase block group-hover:text-outline-variant">Worker Engine Status</span>
-              <span className="font-label-bold text-headline-sm uppercase group-hover:text-white text-carbon">OPTIMIZED</span>
+          {/* CPU & Memory info */}
+          <div className="col-span-1 p-6 border-r border-outline flex flex-col gap-2 hover:bg-carbon group transition-colors">
+            <div className="border-l-2 border-primary pl-3">
+              <span className="font-metadata text-[10px] uppercase block text-secondary group-hover:text-neutral-300">CPU Thread Cores</span>
+              <span className="font-label-bold text-lg text-carbon group-hover:text-white">{diagnostics?.cores || "--"} Threads</span>
             </div>
-            <div className="font-metadata text-metadata text-secondary group-hover:text-outline-variant">
-              IDLE: 12%<br />
-              BUSY: 88%<br />
-              STALLED: 0%
-            </div>
+            <p className="font-metadata text-[10px] text-secondary group-hover:text-neutral-400 leading-tight">
+              Higher cores enable faster concurrent file resizing in Web Workers.
+            </p>
           </div>
-          <div className="col-span-1 p-6 flex flex-col gap-4 hover:bg-carbon group transition-colors cursor-crosshair">
-            <div className="border-l-4 border-error pl-4">
-              <span className="font-metadata text-metadata uppercase block group-hover:text-outline-variant">Queue Bottlenecks</span>
-              <span className="font-label-bold text-headline-sm uppercase text-error">CRITICAL_LOAD</span>
+
+          <div className="col-span-1 p-6 flex flex-col gap-2 hover:bg-carbon group transition-colors">
+            <div className="border-l-2 border-primary pl-3">
+              <span className="font-metadata text-[10px] uppercase block text-secondary group-hover:text-neutral-300">Device Memory</span>
+              <span className="font-label-bold text-lg text-carbon group-hover:text-white">{diagnostics?.memory ? `${diagnostics.memory} GB` : "Unknown"}</span>
             </div>
-            <div className="font-metadata text-metadata text-secondary group-hover:text-outline-variant">
-              PENDING: 14.2k<br />
-              RETRIES: 421<br />
-              DROPPED: 2
-            </div>
+            <p className="font-metadata text-[10px] text-secondary group-hover:text-neutral-400 leading-tight">
+              Available RAM allocated for hosting WebAssembly memory partitions.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* User Monitor */}
-      <section className="col-span-12 md:col-span-4 border-b border-outline bg-white flex flex-col justify-between">
+      {/* Capability List */}
+      <section className="col-span-12 md:col-span-4 border border-outline bg-white flex flex-col justify-between">
         <div>
-          <div className="p-6 border-b border-outline bg-surface-muted flex justify-between items-center">
-            <h2 className="font-label-bold text-label-bold uppercase tracking-widest flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-teal">monitoring</span>
-              [USER_MONITOR]
+          <div className="p-4 border-b border-outline bg-neutral-50 flex justify-between items-center">
+            <h2 className="font-label-bold text-xs uppercase tracking-widest flex items-center gap-2 text-carbon">
+              <span className="material-symbols-outlined text-primary text-sm">settings_ethernet</span>
+              [BROWSER_CAPABILITIES]
             </h2>
           </div>
           <div className="divide-y divide-outline">
-            {tenants.map(t => (
-              <div key={t.id} className="p-6 hover:bg-carbon group transition-colors cursor-crosshair">
-                <div className="flex justify-between items-start mb-2">
+            {diagnostics ? (
+              <>
+                <div className="p-4 flex justify-between items-center hover:bg-neutral-50">
                   <div>
-                    <p className="font-label-bold text-label-bold group-hover:text-white text-carbon">TENANT_ID: {t.id}</p>
-                    <p className="font-metadata text-metadata text-secondary uppercase">Tier: {t.tier}</p>
+                    <span className="font-label-bold text-xs text-carbon block">WebAssembly Support</span>
+                    <span className="font-metadata text-[10px] text-secondary">Required for local WASM optimizer</span>
                   </div>
-                  {t.status === "FLAGGED" && (
-                    <div className="bg-primary-container text-on-primary-container px-2 py-0.5 text-[10px] font-bold uppercase">
-                      FLAGGED
-                    </div>
-                  )}
-                  {t.status === "RESTRICTED" && (
-                    <div className="bg-error text-white px-2 py-0.5 text-[10px] font-bold uppercase">
-                      RESTRICTED
-                    </div>
-                  )}
-                </div>
-                <div className="flex justify-between items-center mt-4">
-                  <span className="font-metadata text-metadata uppercase group-hover:text-outline-variant text-secondary">
-                    Quota Used: {t.quota}%
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${diagnostics.wasmOk ? "bg-primary/10 text-primary" : "bg-error-container text-error"}`}>
+                    {diagnostics.wasmOk ? "SUPPORTED" : "MISSING"}
                   </span>
-                  {t.status === "FLAGGED" ? (
-                    <button
-                      onClick={() => overrideTenant(t.id)}
-                      className="text-primary font-label-bold text-[10px] border border-primary px-3 py-1 rounded-full group-hover:text-white group-hover:border-white transition-colors"
-                    >
-                      [OVERRIDE]
-                    </button>
-                  ) : t.status === "RESTRICTED" ? (
-                    <button
-                      onClick={() => restoreTenant(t.id)}
-                      className="text-error font-label-bold text-[10px] border border-error px-3 py-1 rounded-full group-hover:bg-error group-hover:text-white transition-colors"
-                    >
-                      [RESTORE]
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => alert(`Details for tenant ${t.id} exported to operator logs.`)}
-                      className="text-on-surface-variant font-label-bold text-[10px] border border-outline px-3 py-1 rounded-full group-hover:text-white group-hover:border-white transition-colors"
-                    >
-                      [DETAILS]
-                    </button>
-                  )}
                 </div>
+
+                <div className="p-4 flex justify-between items-center hover:bg-neutral-50">
+                  <div>
+                    <span className="font-label-bold text-xs text-carbon block">WASM Compile Latency</span>
+                    <span className="font-metadata text-[10px] text-secondary">Time to compile minimal module</span>
+                  </div>
+                  <span className="font-metadata text-xs font-bold text-carbon">
+                    {diagnostics.wasmCompileTimeMs ? `${diagnostics.wasmCompileTimeMs} ms` : "N/A"}
+                  </span>
+                </div>
+
+                <div className="p-4 flex justify-between items-center hover:bg-neutral-50">
+                  <div>
+                    <span className="font-label-bold text-xs text-carbon block">Browser LocalStorage</span>
+                    <span className="font-metadata text-[10px] text-secondary">Saves configuration settings</span>
+                  </div>
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${diagnostics.localStorageOk ? "bg-primary/10 text-primary" : "bg-error-container text-error"}`}>
+                    {diagnostics.localStorageOk ? "ACTIVE" : "ERROR"}
+                  </span>
+                </div>
+
+                <div className="p-4 flex justify-between items-center hover:bg-neutral-50">
+                  <div>
+                    <span className="font-label-bold text-xs text-carbon block">IndexedDB API</span>
+                    <span className="font-metadata text-[10px] text-secondary">Enables local multi-file buffers</span>
+                  </div>
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${diagnostics.indexedDbOk ? "bg-primary/10 text-primary" : "bg-error-container text-error"}`}>
+                    {diagnostics.indexedDbOk ? "ACTIVE" : "ERROR"}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="p-6 text-center text-secondary font-metadata text-xs">
+                Analyzing browser capability matrices...
               </div>
-            ))}
+            )}
           </div>
         </div>
-        <div className="p-6 bg-surface-container-high text-center border-t border-outline">
-          <button className="font-label-bold text-label-bold uppercase text-on-surface-variant hover:text-carbon underline decoration-2 underline-offset-4">
-            View All Live Tenants
-          </button>
+        
+        <div className="p-4 bg-neutral-50 text-center border-t border-outline flex flex-col gap-2">
+          <Link href="/">
+            <button className="w-full py-2 border border-carbon text-carbon font-label-bold text-xs uppercase hover:bg-carbon hover:text-white transition-all">
+              Return to Workspace
+            </button>
+          </Link>
         </div>
       </section>
 
       {/* Interactive Command Terminal */}
-      <section className="col-span-12 p-8 bg-carbon text-white relative overflow-hidden">
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-12">
+      <section className="col-span-12 p-6 bg-carbon text-white relative overflow-hidden rounded-b border border-outline border-t-0">
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2">
-            <h3 className="font-label-bold text-label-bold uppercase mb-6 flex items-center gap-2 text-muted-teal">
-              <span className="material-symbols-outlined">terminal</span>
-              Internal Execute Command
+            <h3 className="font-label-bold text-xs uppercase mb-4 flex items-center gap-2 text-primary-fixed-dim">
+              <span className="material-symbols-outlined text-sm">terminal</span>
+              Interactive Diagnostics Terminal
             </h3>
-            {/* Terminal output box */}
-            <div className="h-40 bg-black/40 border border-outline-variant p-4 font-metadata text-[11px] leading-relaxed overflow-y-auto mb-4 custom-scrollbar">
+            
+            {/* Terminal log box */}
+            <div className="h-40 bg-black/45 border border-outline-variant/35 p-3 font-metadata text-[10px] leading-relaxed overflow-y-auto mb-4 custom-scrollbar">
               {consoleLog.map((log, idx) => (
-                <div key={idx} className={idx % 2 === 0 ? "text-outline-variant" : "text-primary font-bold"}>
+                <div key={idx} className={log.startsWith("user@") ? "text-primary font-bold" : "text-neutral-300"}>
                   {log}
                 </div>
               ))}
             </div>
-            <form onSubmit={handleCommandSubmit} className="flex items-center border-b border-outline-variant pb-2">
-              <span className="font-metadata text-metadata text-muted-teal mr-2">staff@core_admin:~$</span>
+
+            <form onSubmit={handleCommandSubmit} className="flex items-center border-b border-outline-variant pb-1">
+              <span className="font-metadata text-[10px] text-primary-fixed-dim mr-2">user@colo_client:~$</span>
               <input
                 value={cmdInput}
-                onChange={e => setCmdInput(e.target.value)}
-                className="bg-transparent border-none focus:outline-none w-full font-label-bold text-label-bold placeholder-outline-variant rounded-none"
-                placeholder="Enter node command (e.g. status, reboot, wipe-cache, help)..."
+                onChange={(e) => setCmdInput(e.target.value)}
+                className="bg-transparent border-none focus:outline-none w-full font-metadata text-xs placeholder-neutral-500 rounded-none text-white"
+                placeholder="Enter command (e.g., help, diagnose, wasm-test, latency-test, system)..."
                 type="text"
               />
             </form>
           </div>
-          <div className="md:col-span-1 md:border-l md:border-outline-variant md:pl-12 flex flex-col justify-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-3 h-3 bg-error rounded-full animate-pulse shadow-[0_0_10px_rgba(186,26,26,0.8)]"></div>
-              <span className="font-label-bold text-label-bold uppercase">Critical Override Required</span>
+
+          <div className="md:col-span-1 md:border-l md:border-outline-variant/30 md:pl-6 flex flex-col justify-center gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse"></div>
+              <span className="font-label-bold text-xs uppercase">Client Runtime Sandbox Nominal</span>
             </div>
             <button
-              onClick={() => {
-                const conf = confirm("WARNING: Destructive operations. Authorize wipe sequence?");
+              onClick={async () => {
+                const conf = confirm("Wipe all local settings and diagnostics caches?");
                 if (conf) {
-                  setConsoleLog(prev => [...prev, "WIPE_SEQUENCE: Triggered. 4.2 GB files purged."]);
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  setConsoleLog((prev) => [...prev, "SYSTEM: Purged localStorage & sessionStorage cache."]);
                 }
               }}
-              className="w-full bg-white text-carbon font-label-bold text-label-bold py-3 uppercase hover:bg-error hover:text-white transition-all rounded-none"
+              className="w-full bg-white text-carbon font-label-bold text-xs py-2.5 uppercase hover:bg-primary hover:text-white transition-all"
             >
-              [AUTHORIZE_WIPE]
+              Clear Storage Cache
             </button>
           </div>
         </div>

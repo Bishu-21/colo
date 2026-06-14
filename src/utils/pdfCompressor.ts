@@ -105,7 +105,7 @@ export async function compressPdf(
   }
 
   const outputBytes = await outputPdf.save();
-  const outputBlob = new Blob([outputBytes as any], { type: "application/pdf" });
+  const outputBlob = new Blob([outputBytes] as unknown as BlobPart[], { type: "application/pdf" });
 
   return {
     blob: outputBlob,

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     console.log(`[AUTH LOGGER] Generating verification sequence for ${identifier} (${type})`);
 
     return NextResponse.json({ success: true, message: "OTP_DISPATCHED" });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "INTERNAL_TRANSMISSION_ERROR" },
       { status: 500 }

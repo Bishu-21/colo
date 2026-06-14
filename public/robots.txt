@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://colo.compresseduploads.com/sitemap.xml

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 export default function AuthPage() {
@@ -62,7 +62,7 @@ export default function AuthPage() {
     }
   };
 
-  const verifyOtp = async () => {
+  const verifyOtp = useCallback(async () => {
     const code = otp.join("");
     if (code.length < 6) {
       setStatus("error");
@@ -93,14 +93,17 @@ export default function AuthPage() {
       setStatus("error");
       setMessage("ERROR: CRITICAL_VERIFICATION_TIMEOUT");
     }
-  };
+  }, [otp, identifier, sessionType, router]);
 
   // Trigger verify automatically when 6 digits are filled
   useEffect(() => {
     if (otp.every(d => d !== "")) {
-      verifyOtp();
+      const timer = setTimeout(() => {
+        verifyOtp();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [otp]);
+  }, [otp, verifyOtp]);
 
   const continueAsGuest = async () => {
     setStatus("sending");

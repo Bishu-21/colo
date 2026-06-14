@@ -16,8 +16,8 @@ const playfairDisplay = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "PRE-FLIGHT COMPILER | Government Portal Optimizer",
-  description: "Zero-Trust local image and PDF compression optimized for strict portal requirements (UPSC, SSC).",
+  title: "colo - UPSC, SSC, & Govt Portal Document Optimizer",
+  description: "Compress and resize passport photographs, signatures, and certificates to exact government portal specifications (UPSC, SSC, NTA). 100% offline, secure client-side browser optimization.",
 };
 
 export default function RootLayout({
@@ -28,6 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jetbrainsMono.variable} ${playfairDisplay.variable}`}>
       <head>
+        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"

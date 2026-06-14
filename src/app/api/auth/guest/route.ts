@@ -29,7 +29,7 @@ export async function POST() {
     });
 
     return NextResponse.json({ success: true, role: "guest" });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: "GUEST_PROVISIONING_ERROR" },
       { status: 500 }

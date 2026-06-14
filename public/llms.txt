@@ -1,0 +1,16 @@
+# COLO (Compressed Uploads)
+
+Secure, client-side, in-browser document resizer and PDF compressor designed for government portal upload specs (UPSC, SSC, NTA, JEE, NEET).
+
+## Core Capabilities
+- **Passport Photo Resizing:** Target precise aspect ratios (e.g., 3.5cm x 4.5cm or 550x550px) and exact file sizes (20KB - 50KB) with high-fidelity canvas anchor scaling.
+- **Signature Scan Optimization:** Clean up raw smartphone photos of signatures by removing background shadows and gray noise, outputting high-contrast binarized ink.
+- **PDF Certificate Compression:** Merge, crop, rotate, and compress multi-page PDF documents down to under 500KB or 300KB portal targets.
+- **Batch Queue Processing:** Queue and compress multiple items concurrently using local worker threads.
+- **100% Client-Side Privacy:** Powered by local WebAssembly. No documents or photos are ever sent to a server.
+
+## Workspace Routes
+- **Landing page (`/`):** Quick spec reference tables, generic features, and interactive visual demo of compressor results.
+- **Image Optimizer (`/workspace/image`):** Tools for cropping, resizing, and binarizing photographs and signatures.
+- **PDF Compressor (`/workspace/pdf`):** Tools for combining, compressing, rotating, and deleting pages of documents.
+- **Diagnostics Panel (`/ops`):** Real-time client browser environment test suite and rendering performance loop monitoring.

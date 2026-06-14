@@ -28,7 +28,7 @@ export function loadImage(file: File | Blob): Promise<HTMLImageElement> {
       URL.revokeObjectURL(url);
       resolve(img);
     };
-    img.onerror = (e) => {
+    img.onerror = () => {
       URL.revokeObjectURL(url);
       reject(new Error("IMAGE_LOAD_FAILURE"));
     };
