@@ -39,7 +39,7 @@ export default function PdfWorkspace() {
   const [rawSizeKb, setRawSizeKb] = useState(0);
   const [pdfResult, setPdfResult] = useState<PDFCompressionResult | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("SYSTEM_AWAITING_INPUT");
+  const [statusMessage, setStatusMessage] = useState("Awaiting input document");
 
   // Sync profile select changes
   const selectProfile = (key: string) => {
@@ -55,7 +55,7 @@ export default function PdfWorkspace() {
       setRawFile(file);
       setRawSizeKb(file.size / 1024);
       setPdfResult(null);
-      setStatusMessage("FILE_MOUNTED_AWAITING_COMPILE");
+      setStatusMessage("File loaded, ready to compress");
     }
   };
 
@@ -65,7 +65,7 @@ export default function PdfWorkspace() {
       return;
     }
     setIsCompiling(true);
-    setStatusMessage("COMPILING_PDF_NODE...");
+    setStatusMessage("Compressing PDF...");
 
     try {
       const result = await compressPdf(rawFile, {
@@ -74,10 +74,10 @@ export default function PdfWorkspace() {
         stripMetadata: stripMetadata || stripAuthor || stripScanner,
       });
       setPdfResult(result);
-      setStatusMessage("NODE_COMPILATION_FINISHED");
+      setStatusMessage("Compression completed");
     } catch (err) {
       console.error(err);
-      setStatusMessage("COMPILATION_ERROR");
+      setStatusMessage("Compression failed");
       alert("PDF compilation failed. Verify file parameters are compliant.");
     } finally {
       setIsCompiling(false);
@@ -91,12 +91,12 @@ export default function PdfWorkspace() {
         <div>
           <h2 className="font-headline-sm text-headline-sm uppercase mb-6 flex items-center gap-2">
             <span className="w-2 h-6 bg-muted-teal"></span>
-            [PDF_COMPILATION_PARAMS]
+            PDF Compression Options
           </h2>
           <div className="space-y-6">
             {/* Pipeline Selector */}
             <div>
-              <label className="font-metadata text-metadata block mb-2 opacity-60">SELECT_PIPELINE_PROFILE</label>
+              <label className="font-metadata text-metadata block mb-2 opacity-60">Optimization Profile</label>
               <select
                 value={pipelineKey}
                 onChange={e => selectProfile(e.target.value)}
@@ -112,7 +112,7 @@ export default function PdfWorkspace() {
 
             {/* Downsample Toggles */}
             <div>
-              <label className="font-metadata text-metadata block mb-2 opacity-60">COMPRESSION_LOGIC</label>
+              <label className="font-metadata text-metadata block mb-2 opacity-60">Compression Priority</label>
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
@@ -121,7 +121,7 @@ export default function PdfWorkspace() {
                     quality <= 0.7 ? "bg-carbon text-surface" : "bg-white text-carbon hover:bg-surface-container-high"
                   }`}
                 >
-                  [VECTORIZE_FONTS - PRESERVE TEXT]
+                  Optimize Text (Preserve Legibility)
                   <span className="material-symbols-outlined text-[16px]">check_circle</span>
                 </button>
                 <button
@@ -131,7 +131,7 @@ export default function PdfWorkspace() {
                     quality > 0.7 || quality === 0.4 ? "bg-carbon text-surface" : "bg-white text-carbon hover:bg-surface-container-high"
                   }`}
                 >
-                  [DOWNSAMPLE_IMAGES - FLATTEN]
+                  Downsample Images (Maximum Compression)
                 </button>
               </div>
             </div>
@@ -139,7 +139,7 @@ export default function PdfWorkspace() {
             {/* DPI Range Slider */}
             <div>
               <div className="flex justify-between items-end mb-2">
-                <label className="font-metadata text-metadata opacity-60">TARGET_DPI_DENSITY</label>
+                <label className="font-metadata text-metadata opacity-60">Target Resolution</label>
                 <span className="font-label-bold text-label-bold text-primary">{dpi} DPI</span>
               </div>
               <input
@@ -151,13 +151,13 @@ export default function PdfWorkspace() {
                 onChange={e => setDpi(parseInt(e.target.value) || 72)}
               />
               <p className="font-metadata text-[9px] mt-2 leading-tight">
-                STATUS: {dpi < 120 ? "ULTRA_COMPACT // LOW RES" : dpi <= 200 ? "OPTIMIZED FOR LEGIBILITY" : "HIGH DETAIL ARCHIVAL"}
+                Status: {dpi < 120 ? "Compact / Low Resolution" : dpi <= 200 ? "Optimized for Legibility" : "High Detail Archival"}
               </p>
             </div>
 
             {/* Metadata clean queue */}
             <div className="border-t border-on-surface pt-6">
-              <label className="font-metadata text-metadata block mb-4 opacity-60">METADATA_STRIP_QUEUE</label>
+              <label className="font-metadata text-metadata block mb-4 opacity-60">Metadata Cleansing</label>
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer group">
                   <input
@@ -203,7 +203,7 @@ export default function PdfWorkspace() {
             disabled={isCompiling || !rawFile}
             className="w-full py-6 bg-carbon text-surface font-label-bold text-label-bold uppercase tracking-[0.2em] hover:bg-muted-teal transition-all flex items-center justify-center gap-4 group disabled:opacity-50"
           >
-            <span>{isCompiling ? "[RUNNING...]" : "[OPTIMIZE_PDF_NODE]"}</span>
+            <span>{isCompiling ? "Compressing..." : "Compress PDF"}</span>
             <span className={`material-symbols-outlined ${isCompiling ? "animate-spin" : "group-hover:translate-x-1"} transition-transform`}>
               bolt
             </span>
@@ -218,7 +218,7 @@ export default function PdfWorkspace() {
           <div className="lg:col-span-8 border-r border-on-surface flex flex-col h-[350px] lg:h-full overflow-hidden">
             <div className="p-4 border-b border-on-surface bg-surface-bright flex justify-between items-center">
               <span className="font-metadata text-metadata text-secondary">
-                {rawFile ? `SOURCE: ${rawFile.name.toUpperCase()}` : "AWAITING PDF UPLOAD"}
+                {rawFile ? `Original: ${rawFile.name.toUpperCase()}` : "Awaiting Document Upload"}
               </span>
               <div className="flex gap-2">
                 <span className="material-symbols-outlined text-[18px] cursor-pointer hover:text-primary">zoom_in</span>
@@ -229,8 +229,8 @@ export default function PdfWorkspace() {
             {!rawFile ? (
               <div className="flex-grow flex flex-col items-center justify-center bg-surface-container p-8">
                 <span className="material-symbols-outlined text-4xl text-secondary mb-4">upload_file</span>
-                <p className="font-label-bold text-label-bold uppercase mb-2">[DROP_PDF_DOCUMENT]</p>
-                <p className="font-metadata text-metadata text-outline-variant mb-6">SUPPORTED: PDF FILES (Max 50MB)</p>
+                <p className="font-label-bold text-label-bold uppercase mb-2">Drop PDF document here</p>
+                <p className="font-metadata text-metadata text-outline-variant mb-6">Supports PDF files (Up to 50MB)</p>
                 <label className="px-6 py-3 bg-carbon text-white uppercase font-metadata text-metadata rounded-full hover:bg-muted-teal transition-all cursor-pointer">
                   Browse Files
                   <input type="file" accept="application/pdf" onChange={handleFileChange} className="hidden" />
@@ -244,11 +244,11 @@ export default function PdfWorkspace() {
                   <div className="w-full h-80 bg-surface-bright flex flex-col justify-center items-center text-center p-4 border border-grid-line">
                     <span className="material-symbols-outlined text-4xl text-primary mb-2">article</span>
                     <span className="font-label-bold text-label-bold uppercase text-[12px]">{rawFile.name}</span>
-                    <span className="font-metadata text-[10px] text-secondary mt-1">PAGE 1 // RESOLUTION: {dpi} DPI</span>
+                    <span className="font-metadata text-[10px] text-secondary mt-1">Page 1 // Resolution: {dpi} DPI</span>
                   </div>
                   <div className="mt-2 flex justify-between items-center font-metadata text-[9px] uppercase">
-                    <span>TYPE: DOCUMENT_VECTOR_PLANE</span>
-                    <span className="text-primary">[LEGIBILITY: {isCompiling ? "PROCESSING" : "COMPLIANT"}]</span>
+                    <span>Type: PDF Document</span>
+                    <span className="text-primary">Legibility: {isCompiling ? "Processing" : "Compliant"}</span>
                   </div>
                 </div>
               </div>
@@ -258,33 +258,33 @@ export default function PdfWorkspace() {
           {/* Telemetry Actions sidebar */}
           <div className="lg:col-span-4 flex flex-col bg-surface-bright h-full">
             <div className="p-6 border-b border-on-surface">
-              <h3 className="font-metadata text-metadata mb-4 opacity-60">OPTIMIZATION_TELEMETRY</h3>
+              <h3 className="font-metadata text-metadata mb-4 opacity-60">File Stats</h3>
               <div className="space-y-6">
                 <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-                  <span className="font-body-md text-secondary">ORIGINAL_SIZE</span>
+                  <span className="font-body-md text-secondary">Original File Size</span>
                   <span className="font-label-bold text-on-surface">
                     {rawFile ? `${rawSizeKb.toFixed(1)} KB` : "0.0 KB"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-                  <span className="font-body-md text-secondary">COMPILED_SIZE</span>
+                  <span className="font-body-md text-secondary">Compressed File Size</span>
                   <span className="font-label-bold text-primary">
                     {pdfResult ? `${pdfResult.sizeKb.toFixed(1)} KB` : "0.0 KB"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center border-b border-outline-variant pb-2">
-                  <span className="font-body-md text-secondary">COMPRESSION_RATIO</span>
+                  <span className="font-body-md text-secondary">Compression Ratio</span>
                   <span className="font-label-bold text-primary">
                     {pdfResult ? `${((1 - pdfResult.blob.size / rawFile!.size) * 100).toFixed(1)}%` : "0.0%"}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="font-body-md text-secondary">LEGIBILITY_SCORE</span>
+                  <span className="font-body-md text-secondary">Legibility Rating</span>
                   <div className="flex items-center gap-2">
                     <span className="font-label-bold text-primary">{pdfResult ? (dpi >= 150 ? "98%" : "89%") : "N/A"}</span>
                     {pdfResult && (
-                      <span className="bg-primary-container text-on-primary-container px-2 py-0.5 font-metadata text-[9px]">
-                        [{dpi >= 150 ? "CRISP" : "COMPACT"}]
+                      <span className="bg-primary-container text-on-primary-container px-2 py-0.5 font-metadata text-[9px] rounded-sm">
+                        {dpi >= 150 ? "Crisp" : "Compact"}
                       </span>
                     )}
                   </div>
@@ -300,10 +300,10 @@ export default function PdfWorkspace() {
               </div>
               <p className="font-body-md text-secondary mb-8 max-w-[200px] uppercase text-[12px]">
                 {isCompiling
-                  ? "NODE COMPILATION IN PROGRESS..."
+                  ? "Compressing PDF pages..."
                   : pdfResult
-                  ? "NODE COMPILATION FINISHED. READY FOR SYSTEM DISPATCH."
-                  : "WAITING FOR OPTIMIZATION PIPELINE EXECUTION."}
+                  ? "PDF compression complete. Ready to download."
+                  : "Waiting to run compression pipeline."}
               </p>
               {pdfResult ? (
                 <a
@@ -311,20 +311,20 @@ export default function PdfWorkspace() {
                   download={`optimized_${rawFile?.name}`}
                   className="w-full py-4 bg-muted-teal text-white font-label-bold text-label-bold uppercase rounded-full hover:bg-carbon transition-all text-center"
                 >
-                  [SAVE_OPTIMIZED_PDF_FILE]
+                  Download Compressed PDF
                 </a>
               ) : (
                 <button
                   disabled
                   className="w-full py-4 border border-outline-variant text-outline-variant font-label-bold text-label-bold uppercase rounded-full cursor-not-allowed"
                 >
-                  [AWAITING_OUTPUT]
+                  Awaiting Compression
                 </button>
               )}
             </div>
             <div className="p-4 bg-carbon text-surface font-metadata text-[9px] flex justify-between">
-              <span>LATENCY: {pdfResult ? "0.24s" : "N/A"}</span>
-              <span>STATUS: {statusMessage}</span>
+              <span>Latency: {pdfResult ? "0.24s" : "N/A"}</span>
+              <span>Status: {statusMessage}</span>
             </div>
           </div>
         </div>

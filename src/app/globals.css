@@ -53,11 +53,14 @@
   --color-primary-fixed: #b7ede4;
   --color-on-primary-fixed: #00201d;
 
-  --font-headline-sm: var(--font-jetbrains-mono), monospace;
-  --font-label-bold: var(--font-jetbrains-mono), monospace;
-  --font-metadata: var(--font-jetbrains-mono), monospace;
-  --font-body-md: var(--font-jetbrains-mono), monospace;
-  --font-display-xl: var(--font-playfair-display), serif;
+  --font-jetbrains-mono: "JetBrains Mono", monospace;
+  --font-playfair-display: "Playfair Display", serif;
+
+  --font-headline-sm: var(--font-jetbrains-mono);
+  --font-label-bold: var(--font-jetbrains-mono);
+  --font-metadata: var(--font-jetbrains-mono);
+  --font-body-md: var(--font-jetbrains-mono);
+  --font-display-xl: var(--font-playfair-display);
   
   --spacing-container-padding: 2rem;
   --spacing-section-gap: 4rem;

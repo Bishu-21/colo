@@ -33,6 +33,12 @@ export default function WorkspaceHeader({ logo, navLinks }: WorkspaceHeaderProps
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mobileMenuOpen]);
 
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Split links into workspace tools and main links
+  const workspaceLinks = navLinks.filter(l => l.path.startsWith("/workspace"));
+  const mainLinks = navLinks.filter(l => !l.path.startsWith("/workspace"));
+
   return (
     <>
       <header className="bg-background border-b border-on-surface flex justify-between items-center w-full px-4 md:px-container-padding h-16 fixed top-0 z-50 select-none">
@@ -43,8 +49,49 @@ export default function WorkspaceHeader({ logo, navLinks }: WorkspaceHeaderProps
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex gap-4 lg:gap-6 font-body-md text-body-md uppercase tracking-tighter items-center h-full">
-          {navLinks.map(link => {
-            const isActive = pathname === link.path || (link.path === "/workspace/image" && pathname.startsWith("/workspace/image"));
+          {/* Workspace Tools Dropdown */}
+          <div
+            className="relative h-full flex items-center"
+            onMouseEnter={() => setDropdownOpen(true)}
+            onMouseLeave={() => setDropdownOpen(false)}
+          >
+            <button
+              type="button"
+              className={`transition-colors py-1 px-2 border-b-2 flex h-full items-center gap-1 cursor-pointer font-body-md uppercase text-secondary border-transparent hover:text-on-surface ${
+                pathname.startsWith("/workspace") ? "text-on-surface border-primary font-bold" : ""
+              }`}
+            >
+              <span>Workspace Tools</span>
+              <span className="material-symbols-outlined text-[16px] transition-transform duration-200">
+                keyboard_arrow_down
+              </span>
+            </button>
+
+            {/* Dropdown Menu */}
+            {dropdownOpen && (
+              <div className="absolute top-16 left-0 w-64 bg-white border border-carbon shadow-xl py-2 flex flex-col z-50">
+                {workspaceLinks.map(link => {
+                  const isActive = pathname === link.path;
+                  return (
+                    <Link
+                      key={link.path}
+                      href={link.path}
+                      className={`px-4 py-3 text-xs font-label-bold transition-all uppercase flex items-center justify-between hover:bg-surface-container-high ${
+                        isActive ? "bg-surface-container-low text-primary font-bold" : "text-secondary hover:text-carbon"
+                      }`}
+                    >
+                      <span>{link.label}</span>
+                      {isActive && <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Main Links */}
+          {mainLinks.map(link => {
+            const isActive = pathname === link.path;
             return (
               <Link
                 key={link.path}
@@ -94,17 +141,41 @@ export default function WorkspaceHeader({ logo, navLinks }: WorkspaceHeaderProps
       {mobileMenuOpen && (
         <div
           id="mobile-nav-menu"
-          className="md:hidden fixed top-16 left-0 w-full bg-background border-b border-carbon z-40 p-6 flex flex-col gap-6 shadow-lg select-none"
+          className="md:hidden fixed top-16 left-0 w-full bg-background border-b border-carbon z-40 p-6 flex flex-col gap-6 shadow-lg select-none max-h-[calc(100vh-64px)] overflow-y-auto"
         >
-          <nav className="flex flex-col gap-4 font-body-md text-body-md uppercase">
-            {navLinks.map(link => {
-              const isActive = pathname === link.path || (link.path === "/workspace/image" && pathname.startsWith("/workspace/image"));
+          <nav className="flex flex-col gap-2 font-body-md text-body-md uppercase">
+            <div className="px-4 py-2 text-[9px] text-secondary font-metadata tracking-wider uppercase border-b border-carbon/10 opacity-60">
+              Workspace Operations
+            </div>
+            {workspaceLinks.map(link => {
+              const isActive = pathname === link.path;
               return (
                 <Link
                   key={link.path}
                   href={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`py-4 px-4 border-l-4 transition-all min-h-[44px] flex items-center ${
+                  className={`py-3 px-6 border-l-4 transition-all min-h-[44px] flex items-center text-xs font-label-bold ${
+                    isActive
+                      ? "text-on-surface border-primary bg-surface-container-low font-bold"
+                      : "text-secondary border-transparent hover:text-on-surface hover:bg-surface-container-low"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
+            
+            <div className="px-4 py-2 mt-4 text-[9px] text-secondary font-metadata tracking-wider uppercase border-b border-carbon/10 opacity-60">
+              Information & Billing
+            </div>
+            {mainLinks.map(link => {
+              const isActive = pathname === link.path;
+              return (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`py-3 px-6 border-l-4 transition-all min-h-[44px] flex items-center text-xs font-label-bold ${
                     isActive
                       ? "text-on-surface border-primary bg-surface-container-low font-bold"
                       : "text-secondary border-transparent hover:text-on-surface hover:bg-surface-container-low"

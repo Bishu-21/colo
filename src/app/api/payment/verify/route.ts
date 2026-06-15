@@ -4,7 +4,8 @@ import { logTransactionLedger } from "@/lib/ledger";
 import { cookies } from "next/headers";
 import { jwtVerify, SignJWT } from "jose";
 
-const keySecret = process.env.RAZORPAY_KEY_SECRET || "mock_secret_123";
+const isProd = process.env.NODE_ENV === "production";
+const keySecret = process.env.RAZORPAY_KEY_SECRET || (isProd ? "" : "mock_secret_123");
 const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || "pre_flight_compiler_secret_token_aes_256_gcm_node_omega"
 );
@@ -29,12 +30,12 @@ export async function POST(request: Request) {
     // Verify signature using SHA-256 HMAC
     const text = razorpay_order_id + "|" + razorpay_payment_id;
     const generatedSignature = crypto
-      .createHmac("sha256", keySecret)
+      .createHmac("sha256", keySecret || "dummy_secret")
       .update(text)
       .digest("hex");
 
-    const isMock = razorpay_order_id.startsWith("order_mock_");
-    const isSignatureValid = isMock || generatedSignature === razorpay_signature;
+    const isMock = razorpay_order_id.startsWith("order_mock_") && !isProd;
+    const isSignatureValid = isMock || (generatedSignature === razorpay_signature && !!keySecret);
 
     if (!isSignatureValid) {
       return NextResponse.json(

@@ -101,31 +101,50 @@ export default function BillingHub() {
 
       // 2. Configure Razorpay checkout options
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || "rzp_test_mock_keys_123",
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || (process.env.NODE_ENV === "production" ? "" : "rzp_test_mock_keys_123"),
         amount: orderData.amount,
         currency: orderData.currency,
         name: "Pre-Flight Compiler",
         description: selectedPlan.name,
         order_id: orderData.orderId,
         handler: async function (response: RazorpayResponse) {
-          // Verify payment on the server
-          const verifyRes = await fetch("/api/payment/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              planId: selectedPlanId,
-              amount: total,
-            }),
-          });
-          const verifyData = await verifyRes.json();
-          if (verifyRes.ok) {
+          // Verify payment on the server with exponential backoff retry loop
+          const verifyWithRetry = async (retries = 5, delay = 1000): Promise<any> => {
+            try {
+              const verifyRes = await fetch("/api/payment/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature,
+                  planId: selectedPlanId,
+                  amount: total,
+                }),
+              });
+              
+              const verifyData = await verifyRes.json();
+              if (verifyRes.ok) {
+                return verifyData;
+              }
+              
+              throw new Error(verifyData.error || "TRANSIENT_SERVER_ERROR");
+            } catch (err) {
+              if (retries > 0) {
+                console.warn(`Payment verification failed. Retrying in ${delay}ms... (${retries} attempts left)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return verifyWithRetry(retries - 1, delay * 2);
+              }
+              throw err;
+            }
+          };
+
+          try {
+            await verifyWithRetry();
             alert("SECURE NODE REPORT: PAYMENT VERIFIED. CREDITS ALLOCATED.");
             window.location.href = "/workspace/image";
-          } else {
-            alert(`ERROR: ${verifyData.error || "SIGNATURE_AUDIT_FAILED"}`);
+          } catch (err: any) {
+            alert(`PAYMENT_ERROR: Verification failed after retries. Reason: ${err.message || "SIGNATURE_AUDIT_FAILED"}. Your payment was captured; credits will sync in the background.`);
           }
         },
         prefill: {

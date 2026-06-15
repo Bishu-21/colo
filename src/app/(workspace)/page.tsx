@@ -13,8 +13,8 @@ const DEMO_PRESETS = {
     compiledSize: "45 KB",
     quality: 88,
     telemetry: "UPSC Compliant // 45.2 KB",
-    rawImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuBLqzu0WAhJfEkFXhMQdN_TTMoylte7zj_mJgRZzW2qPvCWT5LvwFgAl9dv-Xl6syBiyqNTq4ndwT0z79HFe_FmjJNOE0B_s7Lx8YCkrjMoXyNQv_2dNrH-269VCHx_qATv-5I8Hl2X2T1KDzK6-m6kiqkbkOh0Op8CZWjCZBiG0atUt22J2vDWNQzW56lHZ7YJ3Q1WhcWTm2fZtJkzCyNQgSJQsnKrBcOZ7cB9-INL68PysyRFhEmPXE_L8mFKqs4D5He7eAfVFhg",
-    compImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuAnYqEhZDkDUKMg30jrDHjoDJH9hG5jJeGzWPe6JI0lvNsljZZaJ3bZiJ4BfSuMxTE8ehLXGz98Gbrszg810SwHo6iP1kh0oCu1AtgxjDo50Gs0q6GkhgOnA7iPsIneK2XAb1mUE7m77U7Ib7pkW5V2hj7FHDNaVx8NITBfpWWq8oJ43Mh139xBHnPsxVntE__SNqjHrQVCHo2iK84_eofVBUxYIOWpqoyIwEd-WKH3SfuRcGjSqPHnH0wx-rhrGUAfR_kAFgUohTI",
+    rawImg: "/raw-passport.jpg",
+    compImg: "/optimized-passport.jpg",
     isGrayscale: false,
     isPdf: false
   },
@@ -25,8 +25,8 @@ const DEMO_PRESETS = {
     compiledSize: "14 KB",
     quality: 92,
     telemetry: "SSC Compliant // 14.2 KB",
-    rawImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuBLqzu0WAhJfEkFXhMQdN_TTMoylte7zj_mJgRZzW2qPvCWT5LvwFgAl9dv-Xl6syBiyqNTq4ndwT0z79HFe_FmjJNOE0B_s7Lx8YCkrjMoXyNQv_2dNrH-269VCHx_qATv-5I8Hl2X2T1KDzK6-m6kiqkbkOh0Op8CZWjCZBiG0atUt22J2vDWNQzW56lHZ7YJ3Q1WhcWTm2fZtJkzCyNQgSJQsnKrBcOZ7cB9-INL68PysyRFhEmPXE_L8mFKqs4D5He7eAfVFhg",
-    compImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuAnYqEhZDkDUKMg30jrDHjoDJH9hG5jJeGzWPe6JI0lvNsljZZaJ3bZiJ4BfSuMxTE8ehLXGz98Gbrszg810SwHo6iP1kh0oCu1AtgxjDo50Gs0q6GkhgOnA7iPsIneK2XAb1mUE7m77U7Ib7pkW5V2hj7FHDNaVx8NITBfpWWq8oJ43Mh139xBHnPsxVntE__SNqjHrQVCHo2iK84_eofVBUxYIOWpqoyIwEd-WKH3SfuRcGjSqPHnH0wx-rhrGUAfR_kAFgUohTI",
+    rawImg: "/raw-passport.jpg",
+    compImg: "/optimized-passport.jpg",
     isGrayscale: true,
     isPdf: false
   },
@@ -37,8 +37,8 @@ const DEMO_PRESETS = {
     compiledSize: "412 KB",
     quality: 75,
     telemetry: "PDF Compliant // 412.3 KB",
-    rawImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuBLqzu0WAhJfEkFXhMQdN_TTMoylte7zj_mJgRZzW2qPvCWT5LvwFgAl9dv-Xl6syBiyqNTq4ndwT0z79HFe_FmjJNOE0B_s7Lx8YCkrjMoXyNQv_2dNrH-269VCHx_qATv-5I8Hl2X2T1KDzK6-m6kiqkbkOh0Op8CZWjCZBiG0atUt22J2vDWNQzW56lHZ7YJ3Q1WhcWTm2fZtJkzCyNQgSJQsnKrBcOZ7cB9-INL68PysyRFhEmPXE_L8mFKqs4D5He7eAfVFhg",
-    compImg: "https://lh3.googleusercontent.com/aida-public/AB6AXuAnYqEhZDkDUKMg30jrDHjoDJH9hG5jJeGzWPe6JI0lvNsljZZaJ3bZiJ4BfSuMxTE8ehLXGz98Gbrszg810SwHo6iP1kh0oCu1AtgxjDo50Gs0q6GkhgOnA7iPsIneK2XAb1mUE7m77U7Ib7pkW5V2hj7FHDNaVx8NITBfpWWq8oJ43Mh139xBHnPsxVntE__SNqjHrQVCHo2iK84_eofVBUxYIOWpqoyIwEd-WKH3SfuRcGjSqPHnH0wx-rhrGUAfR_kAFgUohTI",
+    rawImg: "/raw-passport.jpg",
+    compImg: "/optimized-passport.jpg",
     isGrayscale: false,
     isPdf: true
   }
@@ -133,26 +133,32 @@ export default function LandingPage() {
   return (
     <main className="max-w-[1440px] mx-auto px-container-padding pt-8 pb-16">
       {/* Compact Title Section */}
-      <section className="mb-12 border-b border-carbon/15 pb-6 pt-4 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <section className="mb-12 border-b border-carbon/15 pb-8 pt-4 text-center max-w-4xl mx-auto flex flex-col items-center gap-6">
         <div>
-          <h1 className="font-display-xl text-3xl sm:text-4xl text-carbon mb-2 uppercase tracking-wide">
+          <h1 className="font-display-xl text-4xl sm:text-5xl text-carbon mb-3 uppercase tracking-wider">
             colo
           </h1>
-          <p className="font-body-md text-sm text-secondary">
-            Secure offline document resizer and compressor for government portals (UPSC, SSC, NTA).
+          <p className="font-body-md text-sm sm:text-base text-secondary max-w-2xl mx-auto">
+            Secure offline document resizer, scanner, and compressor for government portals (UPSC, SSC, NTA).
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap justify-center gap-3">
+          <Link href="/workspace/scan">
+            <button className="px-6 py-3 bg-primary text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
+              <span>AI Document Scanner</span>
+              <span className="material-symbols-outlined text-[16px]">document_scanner</span>
+            </button>
+          </Link>
           <Link href="/workspace/image">
-            <button className="px-5 py-2.5 bg-carbon text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md">
+            <button className="px-6 py-3 bg-carbon text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
               <span>Photo & Signature Resizer</span>
-              <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+              <span className="material-symbols-outlined text-[16px]">photo_camera</span>
             </button>
           </Link>
           <Link href="/workspace/pdf">
-            <button className="px-5 py-2.5 border border-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all flex items-center gap-2">
+            <button className="px-6 py-3 border border-carbon bg-white text-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all flex items-center gap-2 cursor-pointer">
               <span>PDF Compressor</span>
-              <span className="material-symbols-outlined text-[14px]">picture_as_pdf</span>
+              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
             </button>
           </Link>
         </div>
@@ -216,8 +222,31 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Dynamic Specs sliders based on current preset */}
+          {/* Dynamic Specs details based on current preset */}
           <div className="space-y-4 pt-4 border-t border-carbon/10">
+            <div className="bg-surface-container-low p-4 font-metadata text-[10px] leading-relaxed uppercase tracking-wider text-carbon space-y-1.5 border border-carbon/15 rounded-sm shadow-inner">
+              <div className="flex justify-between border-b border-carbon/10 pb-1 font-bold text-primary">
+                <span>Active Spec</span>
+                <span>{currentPreset.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Target Portal</span>
+                <span>{activePreset === "pdf-cert" ? "NTA / JEE / NEET" : activePreset === "ssc-signature" ? "SSC CGL / CHSL" : "UPSC CSE / CDS"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Source File</span>
+                <span className="text-error font-semibold">{currentPreset.sourceSize}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Compressed Cap</span>
+                <span className="text-primary font-bold">{currentPreset.compiledSize}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Optimization Mode</span>
+                <span>{currentPreset.isPdf ? "PDF RASTER" : currentPreset.isGrayscale ? "GS FIT" : "COLOR CROP"}</span>
+              </div>
+            </div>
+
             <div>
               <div className="flex justify-between font-metadata text-metadata mb-2">
                 <span>TARGET QUALITY</span>
@@ -434,7 +463,7 @@ export default function LandingPage() {
                 }
               }}
             >
-              <div className="absolute top-1/2 left-1/2 w-10 h-10 bg-carbon text-white rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 select-none shadow-lg hover:bg-primary transition-all active:scale-95 border border-white/20">
+              <div className="absolute top-1/2 left-1/2 w-10 h-10 bg-carbon text-white rounded-full flex items-center justify-center -translate-x-1/2 -translate-y-1/2 select-none shadow-[0_0_15px_rgba(48,100,93,0.6)] hover:shadow-[0_0_25px_rgba(48,100,93,0.95)] hover:bg-primary transition-all active:scale-95 border border-white/20">
                 <span className="material-symbols-outlined select-none pointer-events-none">unfold_more</span>
               </div>
             </div>

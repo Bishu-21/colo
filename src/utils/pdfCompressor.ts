@@ -1,4 +1,3 @@
-import { PDFDocument } from "pdf-lib";
 
 export interface PDFCompressionConfig {
   targetDpi: number; // e.g. 150 DPI
@@ -45,6 +44,9 @@ export async function compressPdf(
   const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
   const pdf = await loadingTask.promise;
   const pagesCount = pdf.numPages;
+
+  // Dynamically import pdf-lib inside the browser-only context
+  const { PDFDocument } = await import("pdf-lib");
 
   // Create new PDF document container
   const outputPdf = await PDFDocument.create();

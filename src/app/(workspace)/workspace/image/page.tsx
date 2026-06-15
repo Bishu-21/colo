@@ -63,7 +63,7 @@ const PRESETS: Record<string, ExamPreset> = {
     ratioText: "7:9",
   },
   "custom": {
-    name: "Custom_Override",
+    name: "Custom Specifications",
     width: 400,
     height: 400,
     minKb: 10,
@@ -87,11 +87,12 @@ export default function ImageWorkspace() {
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [rawPreviewUrl, setRawPreviewUrl] = useState<string | null>(null);
+  const rawPreviewUrlRef = useRef<string | null>(null);
   const [rawSizeKb, setRawSizeKb] = useState(0);
 
   const [compResult, setCompResult] = useState<CompressionResult | null>(null);
   const [isCompiling, setIsCompiling] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("LIVE_PREVIEW_ACTIVE");
+  const [statusMessage, setStatusMessage] = useState("Live Preview Ready");
 
   const [sliderPos, setSliderPos] = useState(50);
   const splitRef = useRef<HTMLDivElement>(null);
@@ -116,13 +117,18 @@ export default function ImageWorkspace() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      if (file.size > 25 * 1024 * 1024) {
+        alert("FILE SIZE LIMIT: The selected file exceeds 25MB. Please upload a smaller image file for client-side stability.");
+        return;
+      }
       
       // Clean up previous URLs
       if (rawUrl) {
         URL.revokeObjectURL(rawUrl);
       }
-      if (rawPreviewUrl) {
-        URL.revokeObjectURL(rawPreviewUrl);
+      if (rawPreviewUrlRef.current) {
+        URL.revokeObjectURL(rawPreviewUrlRef.current);
+        rawPreviewUrlRef.current = null;
       }
 
       setRawFile(file);
@@ -182,7 +188,7 @@ export default function ImageWorkspace() {
   const runCompiler = useCallback(async () => {
     if (!rawFile) return;
     setIsCompiling(true);
-    setStatusMessage("COMPILING_IMAGE_BUFFER...");
+    setStatusMessage("Optimizing image...");
 
     const preset = PRESETS[activePresetKey];
     const bufferRange = 5; // offset buffer
@@ -204,10 +210,11 @@ export default function ImageWorkspace() {
         );
       });
 
-      if (rawPreviewUrl) {
-        URL.revokeObjectURL(rawPreviewUrl);
+      if (rawPreviewUrlRef.current) {
+        URL.revokeObjectURL(rawPreviewUrlRef.current);
       }
       const previewUrl = URL.createObjectURL(previewBlob);
+      rawPreviewUrlRef.current = previewUrl;
       setRawPreviewUrl(previewUrl);
 
       const result = await compressImageToTargetSize(rawFile, {
@@ -219,17 +226,17 @@ export default function ImageWorkspace() {
         chromaSubsampling: subsampling,
       });
       setCompResult(result);
-      setStatusMessage("COMPRESSION_SUCCESSFUL");
+      setStatusMessage("Optimization complete");
       
       // Auto focus preview step on mobile to show the output image comparison
       setCurrentStep("preview");
     } catch (err) {
       console.error(err);
-      setStatusMessage("COMPRESSION_FAILED");
+      setStatusMessage("Optimization failed");
     } finally {
       setIsCompiling(false);
     }
-  }, [rawFile, activePresetKey, targetKb, width, height, mode, subsampling, rawPreviewUrl]);
+  }, [rawFile, activePresetKey, targetKb, width, height, mode, subsampling]);
 
   useEffect(() => {
     if (rawFile) {
@@ -245,11 +252,11 @@ export default function ImageWorkspace() {
       if (rawUrl) {
         URL.revokeObjectURL(rawUrl);
       }
-      if (rawPreviewUrl) {
-        URL.revokeObjectURL(rawPreviewUrl);
+      if (rawPreviewUrlRef.current) {
+        URL.revokeObjectURL(rawPreviewUrlRef.current);
       }
     };
-  }, [rawUrl, rawPreviewUrl]);
+  }, [rawUrl]);
 
   const handleSliderMove = (clientX: number) => {
     if (!splitRef.current) return;
@@ -310,13 +317,13 @@ export default function ImageWorkspace() {
           <div className={currentStep === "preset" ? "block" : "hidden md:block"}>
             <section>
               <h2 className="font-label-bold text-label-bold text-carbon border-b border-carbon pb-2 mb-6 uppercase">
-                [IMAGE_INPUT_METRICS]
+                Resize Options
               </h2>
               <div className="space-y-6">
                 {/* Preset Dropdown */}
                 <Select
                   id="active-preset"
-                  label="Active_Preset"
+                  label="Active Preset"
                   value={activePresetKey}
                   onChange={e => selectPreset(e.target.value)}
                   options={Object.entries(PRESETS).map(([key, p]) => ({
@@ -328,19 +335,19 @@ export default function ImageWorkspace() {
                 {/* Spec readout card */}
                 <div className="bg-carbon text-surface-bright p-4 font-metadata text-[11px] leading-relaxed tracking-wider">
                   <div className="flex justify-between border-b border-surface-variant/20 pb-1 mb-1">
-                    <span>DIMENSION_SPEC</span>
+                    <span>Target Dimensions</span>
                     <span>
-                      {isCustom ? "CUSTOM_DIMENSIONS" : `${activePreset.width}x${activePreset.height} px`}
+                      {isCustom ? "Custom dimensions" : `${activePreset.width}x${activePreset.height} px`}
                     </span>
                   </div>
                   <div className="flex justify-between border-b border-surface-variant/20 pb-1 mb-1">
-                    <span>SIZE_CONSTRAINTS</span>
+                    <span>File Size Target</span>
                     <span>
-                      {isCustom ? "DYNAMIC_TARGET" : `MIN: ${activePreset.minKb}KB // MAX: ${activePreset.maxKb}KB`}
+                      {isCustom ? "Custom target size" : `MIN: ${activePreset.minKb}KB // MAX: ${activePreset.maxKb}KB`}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span>EXPORT_TYPE</span>
+                    <span>Output Format</span>
                     <span>JPG</span>
                   </div>
                 </div>
@@ -349,7 +356,7 @@ export default function ImageWorkspace() {
                 <div className="space-y-6 pt-4">
                   <div className="flex flex-col gap-2">
                     <label htmlFor="width-input" className="font-metadata text-[10px] min-[360px]:text-metadata text-secondary uppercase flex justify-between gap-1 flex-wrap">
-                      Target Resolution <span>[{isCustom ? "EDITABLE" : "LOCKED"}]</span>
+                      Target Resolution <span>{isCustom ? "(Editable)" : "(Locked)"}</span>
                     </label>
                     <div className="flex gap-2">
                       <Input
@@ -379,14 +386,14 @@ export default function ImageWorkspace() {
                     <div className="flex items-center gap-2 text-primary font-bold">
                       <span className="material-symbols-outlined text-[18px]">lock</span>
                       <span className="font-metadata text-[10px] min-[360px]:text-metadata">
-                        [{isCustom ? "AUTO" : `LOCKED: ${activePreset.ratioText}`}]
+                        {isCustom ? "(Auto)" : `(Locked: ${activePreset.ratioText})`}
                       </span>
                     </div>
                   </div>
 
                   <Input
                     id="target-size"
-                    label={`Target Size Limit (${isCustom ? "KB" : "PRESET_TARGET"})`}
+                    label={`Target Size Limit (${isCustom ? "KB" : "Preset Target"})`}
                     value={targetKb}
                     onChange={e => setTargetKb(Math.max(5, parseInt(e.target.value) || 0))}
                     disabled={!isCustom}
@@ -402,7 +409,7 @@ export default function ImageWorkspace() {
                         onClick={() => setMode("crop")}
                         className="min-h-[44px] py-3.5"
                       >
-                        CROP (Fit Ratio)
+                        Crop to Aspect Ratio
                       </Button>
                       <Button
                         variant={mode === "fit" ? "toggle-active" : "toggle-inactive"}
@@ -410,7 +417,7 @@ export default function ImageWorkspace() {
                         onClick={() => setMode("fit")}
                         className="min-h-[44px] py-3.5"
                       >
-                        PAD (White Margins)
+                        Add Borders (Padding)
                       </Button>
                     </div>
                   </div>
@@ -424,7 +431,7 @@ export default function ImageWorkspace() {
                         onClick={() => setSubsampling("4:2:0")}
                         className="min-h-[44px] py-3.5"
                       >
-                        4:2:0 - HIGH COMPRESSION
+                        High Compression
                       </Button>
                       <Button
                         variant={subsampling === "4:4:4" ? "toggle-active" : "toggle-inactive"}
@@ -432,7 +439,7 @@ export default function ImageWorkspace() {
                         onClick={() => setSubsampling("4:4:4")}
                         className="min-h-[44px] py-3.5"
                       >
-                        4:4:4 - HIGHEST DETAIL
+                        High Quality (Detail)
                       </Button>
                     </div>
                   </div>
@@ -448,7 +455,7 @@ export default function ImageWorkspace() {
                 disabled={isCompiling || !rawFile}
                 className="w-full tracking-widest group min-h-[50px]"
               >
-                <span>{isCompiling ? "[RUNNING_COMPILER...]" : "[RUN_COMPRESSION_COMPILER]"}</span>
+                <span>{isCompiling ? "Optimizing image..." : "Compress & Resize Photo"}</span>
                 <span className={`material-symbols-outlined ${isCompiling ? "animate-spin" : "group-hover:rotate-180"} transition-transform`}>
                   settings_backup_restore
                 </span>
@@ -462,8 +469,8 @@ export default function ImageWorkspace() {
           <FileDropzone
             onFileChange={handleFileChange}
             accept="image/*"
-            label="[DROP_SOURCE_FILE]"
-            subtext="SUPPORTED: JPG, PNG, WEBP (Max 15MB)"
+            label="Drop your photo or signature here"
+            subtext="Supports JPG, PNG, WEBP (Up to 15MB)"
             className="h-full"
           />
         </div>
@@ -501,7 +508,7 @@ export default function ImageWorkspace() {
                   draggable="false"
                 />
                 <div className="absolute bottom-4 left-4 font-metadata text-metadata bg-white/80 px-2 py-1 uppercase border border-carbon z-20">
-                  RAW: {rawFile?.name.substring(0, 15)}... ({rawSizeKb.toFixed(1)} KB)
+                  Original: {rawFile?.name.substring(0, 15)}... ({rawSizeKb.toFixed(1)} KB)
                 </div>
               </div>
 
@@ -519,12 +526,12 @@ export default function ImageWorkspace() {
                   />
                 ) : (
                   <div className="text-center text-outline-variant font-metadata uppercase p-4">
-                    [AWAITING_COMPILATION]
+                    Ready to Compress
                   </div>
                 )}
                 {compResult && (
                   <div className="absolute bottom-4 right-4 font-metadata text-metadata bg-carbon text-white px-2 py-1 uppercase border border-carbon z-20">
-                    COMPILED: {compResult.sizeKb.toFixed(1)} KB
+                    Compressed: {compResult.sizeKb.toFixed(1)} KB
                   </div>
                 )}
               </div>
@@ -544,7 +551,7 @@ export default function ImageWorkspace() {
                   onKeyDown={handleSliderKeyDown}
                   onMouseDown={() => setIsDraggingSlider(true)}
                   onTouchStart={() => setIsDraggingSlider(true)}
-                  className="absolute top-1/2 left-1/2 w-11 h-11 bg-carbon rounded-full flex items-center justify-center text-white cursor-col-resize shadow-xl -translate-x-1/2 -translate-y-1/2 z-30 select-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                   className="absolute top-1/2 left-1/2 w-11 h-11 bg-carbon rounded-full flex items-center justify-center text-white cursor-col-resize shadow-[0_0_15px_rgba(48,100,93,0.6)] hover:shadow-[0_0_25px_rgba(48,100,93,0.95)] hover:bg-primary transition-all -translate-x-1/2 -translate-y-1/2 z-30 select-none focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                 >
                   <span className="material-symbols-outlined text-[20px]">unfold_more</span>
                 </div>
@@ -555,20 +562,20 @@ export default function ImageWorkspace() {
 
         {/* Mobile Output details */}
         <div className={`${currentStep === "output" ? "block" : "hidden"} md:hidden p-6 space-y-6 bg-white border-t border-carbon`}>
-          <h3 className="font-label-bold text-label-bold uppercase border-b border-carbon pb-2 mb-4">[COMPILATION_OUTPUT]</h3>
+          <h3 className="font-label-bold text-label-bold uppercase border-b border-carbon pb-2 mb-4">Optimization Output</h3>
           <div className="grid grid-cols-2 gap-4">
             <div className="border border-carbon p-4 flex flex-col justify-center">
-              <span className="font-metadata text-[10px] text-secondary block mb-1">FILE_SIZE</span>
+              <span className="font-metadata text-[10px] text-secondary block mb-1">File Size</span>
               <span className="font-label-bold text-lg">{compResult ? `${compResult.sizeKb.toFixed(1)} KB` : "N/A"}</span>
               {compResult && <StatusBadge variant="pill-success" text="COMPLIANT" className="mt-1" />}
             </div>
             <div className="border border-carbon p-4 flex flex-col justify-center">
-              <span className="font-metadata text-[10px] text-secondary block mb-1">DIMENSIONS</span>
+              <span className="font-metadata text-[10px] text-secondary block mb-1">Dimensions</span>
               <span className="font-label-bold text-lg">{compResult ? `${compResult.width}x${compResult.height} PX` : "N/A"}</span>
               {compResult && <StatusBadge variant="pill-success" text="COMPLIANT" className="mt-1" />}
             </div>
             <div className="border border-carbon p-4 col-span-2 flex flex-col justify-center">
-              <span className="font-metadata text-[10px] text-secondary block mb-1">PIXEL_RATIO</span>
+              <span className="font-metadata text-[10px] text-secondary block mb-1">Pixel Aspect Ratio</span>
               <span className="font-label-bold text-lg">{compResult ? "1.000" : "N/A"}</span>
               {compResult && <StatusBadge variant="pill-success" text="COMPLIANT" className="mt-1" />}
             </div>
@@ -578,17 +585,17 @@ export default function ImageWorkspace() {
         {/* Desktop Bottom Telemetry Output Bar */}
         <div className="hidden md:flex h-24 bg-surface-container-highest border-t border-carbon divide-x divide-carbon select-none">
           <MetricCard
-            label="FILE_SIZE"
+            label="File Size"
             value={compResult ? `${compResult.sizeKb.toFixed(1)} KB` : "N/A"}
             compliant={!!compResult}
           />
           <MetricCard
-            label="DIMENSIONS"
+            label="Dimensions"
             value={compResult ? `${compResult.width}x${compResult.height} PX` : "N/A"}
             compliant={!!compResult}
           />
           <MetricCard
-            label="PIXEL_RATIO"
+            label="Pixel Aspect Ratio"
             value={compResult ? "1.000" : "N/A"}
             compliant={!!compResult}
           />
@@ -604,7 +611,7 @@ export default function ImageWorkspace() {
                   size="full"
                   className="h-full hover:bg-muted-teal text-xs md:text-metadata font-metadata group min-h-[44px]"
                 >
-                  [DOWNLOAD_IMAGE_JPG]
+                  Download Optimized JPG
                   <span className="material-symbols-outlined text-[18px] group-hover:translate-y-1 transition-transform">
                     download
                   </span>
@@ -617,7 +624,7 @@ export default function ImageWorkspace() {
                 size="full"
                 className="border-outline-variant text-outline-variant font-metadata cursor-not-allowed min-h-[44px]"
               >
-                [AWAITING_COMPILATION]
+                Awaiting Compression
               </Button>
             )}
           </div>
@@ -637,7 +644,7 @@ export default function ImageWorkspace() {
               size="full"
               className="h-12 text-[11px] font-metadata group min-h-[44px]"
             >
-              [DOWNLOAD_COMPLIANT_JPG]
+              Download Optimized JPG
               <span className="material-symbols-outlined text-[18px] group-hover:translate-y-1 transition-transform">
                 download
               </span>

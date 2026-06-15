@@ -11,16 +11,73 @@ export interface AppShellProps {
 
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   const [wasmSupported, setWasmSupported] = useState<boolean | null>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     const supported = typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function";
     const timer = setTimeout(() => {
       setWasmSupported(supported);
     }, 0);
-    return () => clearTimeout(timer);
+
+    // In development mode, unregister any active service workers and clear caches; skip registration
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      const isDev = process.env.NODE_ENV === "development" ||
+                    window.location.hostname === "localhost" ||
+                    window.location.hostname === "127.0.0.1";
+      if (isDev) {
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          if (registrations.length > 0) {
+            console.log("Clearing dev service workers and caches...");
+            // Unregister all service workers
+            const unregisterPromises = registrations.map((reg) => reg.unregister());
+            Promise.all(unregisterPromises).then(() => {
+              // Clear all cache keys
+              if (typeof caches !== "undefined") {
+                caches.keys().then((keys) => {
+                  Promise.all(keys.map((key) => caches.delete(key))).then(() => {
+                    console.log("Cleanup complete.");
+                  });
+                });
+              } else {
+                console.log("No cache storage to clear.");
+              }
+            });
+          }
+        });
+      } else {
+        // Register PWA Service Worker for offline capability in production only
+        navigator.serviceWorker.register("/sw.js").catch((err) => {
+          console.warn("PWA service worker registration failed:", err);
+        });
+      }
+    }
+
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
   }, []);
 
+  const handleInstallClick = () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then((choiceResult: { outcome: string }) => {
+      if (choiceResult.outcome === "accepted") {
+        console.log("User accepted the install prompt");
+      }
+      setDeferredPrompt(null);
+    });
+  };
+
   const navLinks = [
+    { label: "AI Scanner", path: "/workspace/scan" },
     { label: "Image Optimizer", path: "/workspace/image" },
     { label: "PDF Compressor", path: "/workspace/pdf" },
     { label: "Batch Queue", path: "/workspace/batch" },
@@ -50,6 +107,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
           </span>
           <TelemetryTicker />
           <span className="hidden sm:inline">GOVT SPEC COMPLIANT</span>
+          {deferredPrompt && (
+            <button
+              onClick={handleInstallClick}
+              className="text-tertiary-fixed-dim font-bold animate-pulse hover:text-white border border-dashed border-tertiary-fixed-dim px-2 py-0.5 rounded transition-colors cursor-pointer"
+            >
+              [INSTALL APP]
+            </button>
+          )}
           <Link href="/ops" className="hover:text-tertiary-fixed-dim text-surface-bright border border-outline px-2 py-0.5 rounded-sm md:border-0 md:p-0 transition-colors">
             [SYSTEM_STATUS]
           </Link>
