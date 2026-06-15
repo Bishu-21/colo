@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     }
 
     // Double-entry cryptographic audit log writing
-    logTransactionLedger(
+    await logTransactionLedger(
       userId,
       amount,
       "CREDIT",

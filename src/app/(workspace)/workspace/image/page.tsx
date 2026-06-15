@@ -258,14 +258,6 @@ export default function ImageWorkspace() {
     };
   }, [rawUrl]);
 
-  const handleSliderMove = (clientX: number) => {
-    if (!splitRef.current) return;
-    const rect = splitRef.current.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    setSliderPos(percentage);
-  };
-
   const handleSliderKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowLeft") {
       setSliderPos(prev => Math.max(0, prev - 5));
@@ -279,10 +271,35 @@ export default function ImageWorkspace() {
   };
 
   useEffect(() => {
-    const handleMouseUp = () => setIsDraggingSlider(false);
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, []);
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDraggingSlider || !splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const clientX = "touches" in e ? e.touches[0]?.clientX : e.clientX;
+      if (clientX === undefined) return;
+      
+      const x = clientX - rect.left;
+      const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+      setSliderPos(percentage);
+    };
+
+    const handleRelease = () => setIsDraggingSlider(false);
+
+    if (isDraggingSlider) {
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("touchmove", handleMove);
+      window.addEventListener("mouseup", handleRelease);
+      window.addEventListener("touchend", handleRelease);
+      window.addEventListener("touchcancel", handleRelease);
+    }
+
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("mouseup", handleRelease);
+      window.removeEventListener("touchend", handleRelease);
+      window.removeEventListener("touchcancel", handleRelease);
+    };
+  }, [isDraggingSlider]);
 
   const activePreset = PRESETS[activePresetKey];
   const isCustom = activePresetKey === "custom";
@@ -492,8 +509,6 @@ export default function ImageWorkspace() {
 
             <div
               ref={splitRef}
-              onMouseMove={e => isDraggingSlider && handleSliderMove(e.clientX)}
-              onTouchMove={e => isDraggingSlider && e.touches[0] && handleSliderMove(e.touches[0].clientX)}
               className="flex-grow relative select-none bg-surface-container-low overflow-hidden min-h-[350px] md:min-h-0"
             >
               {/* Left Side: Original Image */}

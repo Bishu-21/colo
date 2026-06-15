@@ -52,7 +52,7 @@ export async function POST(request: Request) {
       const userId = notes.userId || "guest_user";
 
       // PERSIST IN AUDIT LEDGER
-      logTransactionLedger(
+      await logTransactionLedger(
         userId,
         amount,
         "CREDIT",

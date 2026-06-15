@@ -77,6 +77,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   };
 
   const navLinks = [
+    { label: "All Tools", path: "/workspace" },
     { label: "AI Scanner", path: "/workspace/scan" },
     { label: "Image Optimizer", path: "/workspace/image" },
     { label: "PDF Compressor", path: "/workspace/pdf" },
