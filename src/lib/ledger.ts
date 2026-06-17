@@ -1,26 +1,19 @@
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
+import { getSQL, ensureSchema } from "@/utils/neonDb";
 
 export interface LedgerEntry {
   id: string;
   timestamp: string;
   userId: string;
-  amount: number;       // Base cost
-  tax: number;          // GST 18%
-  total: number;        // Final billed total
+  amount: number;
+  tax: number;
+  total: number;
   type: "CREDIT" | "DEBIT";
   description: string;
-  externalRef: string;  // Razorpay payment ID
+  externalRef: string;
   previousHash: string;
   hash: string;
 }
-
-const LEDGER_PATH = path.join(process.cwd(), "data", "ledger.jsonl");
-
-// Memory caches for high-concurrency optimization
-let cachedLastEntry: LedgerEntry | null = null;
-let isCacheLoaded = false;
 
 // Sequential write queue to prevent race conditions in cryptographic link calculations
 class AsyncWriteQueue {
@@ -35,28 +28,31 @@ class AsyncWriteQueue {
 
 const writeQueue = new AsyncWriteQueue();
 
-function loadCacheIfNeeded(): void {
-  if (isCacheLoaded) return;
-  try {
-    if (fs.existsSync(LEDGER_PATH)) {
-      const data = fs.readFileSync(LEDGER_PATH, "utf-8").trim().split("\n");
-      const lastLine = data[data.length - 1];
-      if (lastLine && lastLine.trim() !== "") {
-        cachedLastEntry = JSON.parse(lastLine) as LedgerEntry;
-      }
-    }
-  } catch (err) {
-    console.error("[LEDGER_CACHE_ERROR] Failed to populate memory cache:", err);
-  }
-  isCacheLoaded = true;
-}
+// Memory cache for the last entry's hash (warm on first write)
+let cachedLastHash: string | null = null;
 
 /**
  * Reads the last entry from the ledger to fetch its hash
  */
-export function getLastLedgerEntry(): LedgerEntry | null {
-  loadCacheIfNeeded();
-  return cachedLastEntry;
+export async function getLastLedgerEntry(): Promise<LedgerEntry | null> {
+  await ensureSchema();
+  const sql = getSQL();
+  const rows = await sql`SELECT * FROM transactions ORDER BY created_at DESC LIMIT 1`;
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    id: row.id,
+    timestamp: new Date(row.created_at).toISOString(),
+    userId: row.user_id,
+    amount: parseFloat(row.amount),
+    tax: parseFloat(row.tax),
+    total: parseFloat(row.total),
+    type: row.type as "CREDIT" | "DEBIT",
+    description: row.description,
+    externalRef: row.external_ref,
+    previousHash: row.previous_hash,
+    hash: row.hash,
+  };
 }
 
 /**
@@ -71,18 +67,27 @@ export async function logTransactionLedger(
   externalRef: string
 ): Promise<LedgerEntry> {
   return writeQueue.enqueue(async () => {
-    loadCacheIfNeeded();
+    await ensureSchema();
+    const sql = getSQL();
 
-    const previousHash = cachedLastEntry
-      ? cachedLastEntry.hash
-      : "0000000000000000000000000000000000000000000000000000000000000000";
+    // Get the previous hash from cache or database
+    let previousHash = cachedLastHash;
+    if (!previousHash) {
+      const lastEntry = await getLastLedgerEntry();
+      previousHash = lastEntry
+        ? lastEntry.hash
+        : "0000000000000000000000000000000000000000000000000000000000000000";
+    }
 
     const tax = Math.round(amount * 0.18 * 100) / 100;
     const total = Math.round((amount + tax) * 100) / 100;
 
+    const entryId = `tx_${crypto.randomBytes(8).toString("hex")}`;
+    const timestamp = new Date().toISOString();
+
     const entryDataWithoutHash = {
-      id: `tx_${crypto.randomBytes(8).toString("hex")}`,
-      timestamp: new Date().toISOString(),
+      id: entryId,
+      timestamp,
       userId,
       amount,
       tax,
@@ -99,26 +104,23 @@ export async function logTransactionLedger(
       .update(previousHash + JSON.stringify(entryDataWithoutHash))
       .digest("hex");
 
+    // Insert into Neon database
+    await sql`
+      INSERT INTO transactions (id, user_id, amount, tax, total, type, description, external_ref, previous_hash, hash)
+      VALUES (${entryId}, ${userId}, ${amount}, ${tax}, ${total}, ${type}, ${description}, ${externalRef}, ${previousHash}, ${hash})
+    `;
+
+    // Update memory cache for next sequential transaction
+    cachedLastHash = hash;
+
     const entry: LedgerEntry = {
       ...entryDataWithoutHash,
       hash,
     };
 
-    // Check for production serverless database URL
-    if (process.env.DATABASE_URL) {
-      console.log(`[LEDGER DATABASE ROUTING] Connecting to serverless SQL cluster. Saving transaction ${entry.id}...`);
-      // Fallback fallback log. In production, this maps to pool.query()
-    }
-
-    // Write to local append file asynchronously without blocking the event loop
-    const dir = path.dirname(LEDGER_PATH);
-    await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.appendFile(LEDGER_PATH, JSON.stringify(entry) + "\n", "utf-8");
-
-    // Update memory cache for next sequential transaction check
-    cachedLastEntry = entry;
-
-    console.log(`[LEDGER INTEGRITY AUDIT] Recorded transaction ${entry.id} with hash ${hash.substring(0, 16)}...`);
+    console.log(
+      `[LEDGER INTEGRITY AUDIT] Recorded transaction ${entry.id} with hash ${hash.substring(0, 16)}...`
+    );
     return entry;
   });
 }
@@ -126,14 +128,26 @@ export async function logTransactionLedger(
 /**
  * Retrieves the entire list of transactions
  */
-export function getLedgerHistory(): LedgerEntry[] {
+export async function getLedgerHistory(): Promise<LedgerEntry[]> {
   try {
-    if (!fs.existsSync(LEDGER_PATH)) {
-      return [];
-    }
-    const data = fs.readFileSync(LEDGER_PATH, "utf-8").trim().split("\n");
-    return data.filter(line => line.trim() !== "").map(line => JSON.parse(line) as LedgerEntry);
-  } catch {
+    await ensureSchema();
+    const sql = getSQL();
+    const rows = await sql`SELECT * FROM transactions ORDER BY created_at ASC`;
+    return rows.map((row) => ({
+      id: row.id,
+      timestamp: new Date(row.created_at).toISOString(),
+      userId: row.user_id,
+      amount: parseFloat(row.amount),
+      tax: parseFloat(row.tax),
+      total: parseFloat(row.total),
+      type: row.type as "CREDIT" | "DEBIT",
+      description: row.description,
+      externalRef: row.external_ref,
+      previousHash: row.previous_hash,
+      hash: row.hash,
+    }));
+  } catch (err) {
+    console.error("[LEDGER_HISTORY_ERROR]", err);
     return [];
   }
 }

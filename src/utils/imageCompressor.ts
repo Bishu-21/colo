@@ -156,13 +156,125 @@ export async function compressImageToTargetSize(
     throw new Error("COMPRESSION_ALGORITHM_CONVERGENCE_FAILED");
   }
 
+  // Strip EXIF and other APP1-APP15 metadata to satisfy government portals
+  let finalBlob = bestBlob;
+  try {
+    const arrayBuffer = await bestBlob.arrayBuffer();
+    const strippedBuffer = stripJpegMetadata(arrayBuffer);
+    finalBlob = new Blob([strippedBuffer], { type: "image/jpeg" });
+  } catch (err) {
+    console.error("EXIF stripping failed:", err);
+  }
+
   return {
-    blob: bestBlob,
-    url: URL.createObjectURL(bestBlob),
-    sizeKb: bestBlob.size / 1024,
+    blob: finalBlob,
+    url: URL.createObjectURL(finalBlob),
+    sizeKb: finalBlob.size / 1024,
     width: config.targetWidth,
     height: config.targetHeight,
     quality: bestQuality,
     iterations,
   };
 }
+
+/**
+ * Programmatically strips EXIF and ICC profiles (APP1-APP15 segments) from a JPEG buffer.
+ * Retains SOI, APP0, SOF, DHT, DQT, SOS, etc., ensuring strict compliance for gov portal uploads.
+ */
+export function stripJpegMetadata(buffer: ArrayBuffer): ArrayBuffer {
+  const view = new DataView(buffer);
+  if (view.byteLength < 4) return buffer;
+  
+  // Verify JPEG SOI (0xFFD8)
+  if (view.getUint16(0) !== 0xFFD8) {
+    return buffer;
+  }
+
+  const chunks: ArrayBuffer[] = [];
+  // Add SOI (0xFFD8)
+  const soi = new Uint8Array([0xFF, 0xD8]);
+  chunks.push(soi.buffer);
+
+  let offset = 2;
+  const length = view.byteLength;
+
+  while (offset < length) {
+    // Skip padding/alignment bytes that are not 0xFF
+    while (offset < length && view.getUint8(offset) !== 0xFF) {
+      offset++;
+    }
+    
+    if (offset >= length) break;
+    
+    // Skip multiple 0xFF pad bytes
+    while (offset < length && view.getUint8(offset) === 0xFF) {
+      offset++;
+    }
+    
+    if (offset >= length) break;
+    
+    const marker = view.getUint8(offset);
+    offset++; // Advance past marker byte
+
+    // EOI (0xFFD9)
+    if (marker === 0xD9) {
+      const eoi = new Uint8Array([0xFF, 0xD9]);
+      chunks.push(eoi.buffer);
+      break;
+    }
+
+    // SOS (0xFFDA) - start of scan segment and entropy-coded data. Copy everything to the end.
+    if (marker === 0xDA) {
+      const sosMarker = new Uint8Array([0xFF, marker]);
+      chunks.push(sosMarker.buffer);
+      const rest = buffer.slice(offset);
+      chunks.push(rest);
+      break;
+    }
+
+    // Markers without size payload (TEM: 0x01, RST0-RST7: 0xD0-0xD7)
+    if (marker === 0x01 || (marker >= 0xD0 && marker <= 0xD7)) {
+      const segment = new Uint8Array([0xFF, marker]);
+      chunks.push(segment.buffer);
+      continue;
+    }
+
+    // Segments with size payload
+    if (offset + 2 > length) {
+      break;
+    }
+    
+    const segmentLength = view.getUint16(offset);
+    if (offset + segmentLength > length) {
+      break;
+    }
+
+    // If marker is APP1-APP15 (0xE1-0xEF), strip it.
+    if (marker >= 0xE1 && marker <= 0xEF) {
+      offset += segmentLength;
+    } else {
+      // Keep segment
+      const markerBytes = new Uint8Array([0xFF, marker]);
+      chunks.push(markerBytes.buffer);
+      const segmentData = buffer.slice(offset, offset + segmentLength);
+      chunks.push(segmentData);
+      offset += segmentLength;
+    }
+  }
+
+  // Concatenate chunks
+  let totalLength = 0;
+  for (const chunk of chunks) {
+    totalLength += chunk.byteLength;
+  }
+
+  const result = new Uint8Array(totalLength);
+  let writeOffset = 0;
+  for (const chunk of chunks) {
+    result.set(new Uint8Array(chunk), writeOffset);
+    writeOffset += chunk.byteLength;
+  }
+
+  return result.buffer;
+}
+

@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
-import crypto from "crypto";
-import { logTransactionLedger } from "@/lib/ledger";
 import { cookies } from "next/headers";
-import { jwtVerify, SignJWT } from "jose";
+import crypto from "crypto";
+import { getUser, saveUser } from "@/utils/db";
+import { logTransactionLedger } from "@/lib/ledger";
+import { getSQL } from "@/utils/neonDb";
+import { getSessionUser } from "@/utils/authConfig";
 
 const isProd = process.env.NODE_ENV === "production";
 const keySecret = process.env.RAZORPAY_KEY_SECRET || (isProd ? "" : "mock_secret_123");
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "pre_flight_compiler_secret_token_aes_256_gcm_node_omega"
-);
+
+const SERVER_PLANS: Record<string, { price: number; name: string }> = {
+  "candidate": { price: 49, name: "Candidate Pass (Single Season)" },
+  "csc": { price: 499, name: "CSC Operator Subscription (Monthly)" },
+  "enterprise": { price: 999, name: "Enterprise API SDK (Pay-As-You-Go)" }
+};
 
 export async function POST(request: Request) {
   try {
@@ -20,12 +25,65 @@ export async function POST(request: Request) {
       amount,
     } = await request.json();
 
-    if (!razorpay_order_id || !razorpay_payment_id) {
+    if (!razorpay_order_id || !razorpay_payment_id || !planId) {
       return NextResponse.json(
         { error: "MISSING_TRANSACTION_PAYLOAD" },
         { status: 400 }
       );
     }
+
+    // 1. Enforce Server-Side Auth Check
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    }
+    const { userId, role } = sessionUser;
+
+    let currentCredits = 3;
+    let currentRole = role;
+    
+    // Fetch latest user details from DB
+    const dbUser = await getUser(userId);
+    if (dbUser) {
+      currentCredits = dbUser.credits;
+      currentRole = dbUser.role;
+    }
+
+    // 2. Make Payment Verification Idempotent
+    const sql = getSQL();
+    const existingTx = await sql`SELECT * FROM transactions WHERE external_ref = ${razorpay_payment_id} LIMIT 1`;
+    if (existingTx.length > 0) {
+      const dbUser = await getUser(userId.toLowerCase());
+      const resCredits = dbUser ? dbUser.credits : currentCredits;
+      const resRole = dbUser ? dbUser.role : currentRole;
+      return NextResponse.json({
+        success: true,
+        role: resRole,
+        credits: resCredits,
+        idempotentBypass: true,
+      });
+    }
+
+    const plan = SERVER_PLANS[planId];
+    if (!plan) {
+      return NextResponse.json(
+        { error: "INVALID_PLAN_ID" },
+        { status: 400 }
+      );
+    }
+
+    const basePrice = plan.price;
+    const gst = Math.round(basePrice * 0.18 * 100) / 100;
+    const expectedAmount = Math.round((basePrice + gst) * 100) / 100;
+
+    // Reject mismatch or manipulation attempts
+    if (Math.abs(amount - expectedAmount) > 0.01) {
+      return NextResponse.json(
+        { error: "PAYMENT_AMOUNT_MISMATCH" },
+        { status: 400 }
+      );
+    }
+
 
     // Verify signature using SHA-256 HMAC
     const text = razorpay_order_id + "|" + razorpay_payment_id;
@@ -44,38 +102,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // Decode session payload
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get("session");
-    let userId = "guest_user";
-    let currentCredits = 3;
-    let currentRole = "guest";
-
-    if (sessionCookie) {
-      try {
-        const { payload } = await jwtVerify(sessionCookie.value, secret);
-        userId = (payload.identifier as string) || "guest_user";
-        currentCredits = (payload.credits as number) || 3;
-        currentRole = (payload.role as string) || "guest";
-      } catch {
-        // Fallback to guest
-      }
-    }
 
     // Double-entry cryptographic audit log writing
     await logTransactionLedger(
       userId,
-      amount,
+      expectedAmount,
       "CREDIT",
       `ACTIVATED_PLAN_${planId.toUpperCase()}`,
       razorpay_payment_id
     );
 
+
     // Compute updated credit allocation
     let addedCredits = 3;
     let newRole = currentRole;
     
-    if (planId === "candidate") {
+    if (planId === "single-photo") {
+      addedCredits = 5;
+      newRole = "candidate";
+    } else if (planId === "candidate") {
       addedCredits = 100;
       newRole = "candidate";
     } else if (planId === "csc") {
@@ -86,28 +131,37 @@ export async function POST(request: Request) {
       newRole = "enterprise";
     }
 
-    // Issue updated session token
-    const token = await new SignJWT({
-      identifier: userId,
-      role: newRole,
-      credits: currentCredits + addedCredits,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("24h")
-      .sign(secret);
-
-    cookieStore.set("session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24,
-      path: "/",
-    });
+    // Update user credits persistently in the database
+    let finalCredits = currentCredits + addedCredits;
+    if (userId !== "guest_user") {
+      const cleanId = userId.toLowerCase();
+      let dbUser = await getUser(cleanId);
+      if (!dbUser) {
+        dbUser = await saveUser({
+          identifier: cleanId,
+          role: newRole,
+          credits: finalCredits,
+        });
+      } else {
+        dbUser.credits += addedCredits;
+        // Upgrade role matching purchases
+        if (newRole !== "guest" && dbUser.role === "guest") {
+          dbUser.role = newRole;
+        } else if (planId === "csc") {
+          dbUser.role = "operator";
+        } else if (planId === "enterprise") {
+          dbUser.role = "enterprise";
+        }
+        dbUser = await saveUser(dbUser);
+      }
+      finalCredits = dbUser.credits;
+      newRole = dbUser.role;
+    }
 
     return NextResponse.json({
       success: true,
       role: newRole,
-      credits: currentCredits + addedCredits,
+      credits: finalCredits,
     });
   } catch (error) {
     console.error("[PAYMENT_VERIFY_ERROR]", error);

@@ -84,7 +84,7 @@ const FEATURE_TABS = [
       { name: "Password Protection & Removal", desc: "Encrypt files or decrypt password-locked PDF sheets." },
       { name: "Electronic Signatures (e-Sign)", desc: "Draw, type, or import your signature safely to sign forms." },
       { name: "Cloud Drive Integration", desc: "Import and save documents directly from Google Drive or Dropbox." },
-      { name: "Offline Desktop Processing", desc: "Run all compression locally in browser memory. No internet uploads." },
+      { name: "Secure Hybrid Processing", desc: "Upload files securely over HTTPS; processing runs on authenticated servers with no persistent storage." },
       { name: "Mobile App Access", desc: "Crop photos, sign forms, and compress files on any mobile browser." }
     ]
   }
@@ -97,6 +97,37 @@ export default function LandingPage() {
   const [isResizing, setIsResizing] = useState(false);
   const [activeFeatureTab, setActiveFeatureTab] = useState("edit");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [session, setSession] = useState<{
+    authenticated: boolean;
+    role: string;
+    credits: number;
+    identifier?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((res) => res.json())
+      .then(setSession)
+      .catch((err) => console.error("Failed to load session:", err));
+  }, []);
+
+  const getWorkspaceLink = (toolId: string) => {
+    if (session?.authenticated) {
+      return `/workspace?tool=${toolId}`;
+    }
+    return `/auth/sign-in?redirect=${encodeURIComponent(`/workspace?tool=${toolId}`)}`;
+  };
+
+  const [storyOpen, setStoryOpen] = useState(false);
+
+  useEffect(() => {
+    if (!storyOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setStoryOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [storyOpen]);
 
   const currentPreset = DEMO_PRESETS[activePreset];
 
@@ -136,33 +167,35 @@ export default function LandingPage() {
       <section className="mb-12 border-b border-carbon/15 pb-8 pt-4 text-center max-w-4xl mx-auto flex flex-col items-center gap-6">
         <div>
           <h1 className="font-display-xl text-4xl sm:text-5xl text-carbon mb-3 uppercase tracking-wider">
-            colo
+            morpee
           </h1>
           <p className="font-body-md text-sm sm:text-base text-secondary max-w-2xl mx-auto">
-            Secure offline document resizer, scanner, and compressor for government portals (UPSC, SSC, NTA).
+            Secure hybrid document resizer, scanner, and compressor for government portals (UPSC, SSC, NTA).
           </p>
         </div>
+        <button
+          onClick={() => setStoryOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 border-2 border-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all cursor-pointer shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+        >
+          <span className="material-symbols-outlined text-[18px]">auto_stories</span>
+          <span>Why morpee? Read the Comic Story 📖</span>
+        </button>
         <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/workspace/scan">
-            <button className="px-6 py-3 bg-primary text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
-              <span>AI Document Scanner</span>
-              <span className="material-symbols-outlined text-[16px]">document_scanner</span>
-            </button>
+          <Link href={getWorkspaceLink("scan")} prefetch={false} className="px-6 py-3 bg-primary text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
+            <span>AI Document Scanner</span>
+            <span className="material-symbols-outlined text-[16px]">document_scanner</span>
           </Link>
-          <Link href="/workspace/image">
-            <button className="px-6 py-3 bg-carbon text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
-              <span>Photo & Signature Resizer</span>
-              <span className="material-symbols-outlined text-[16px]">photo_camera</span>
-            </button>
+          <Link href={getWorkspaceLink("image")} prefetch={false} className="px-6 py-3 bg-carbon text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
+            <span>Photo & Signature Resizer</span>
+            <span className="material-symbols-outlined text-[16px]">photo_camera</span>
           </Link>
-          <Link href="/workspace/pdf">
-            <button className="px-6 py-3 border border-carbon bg-white text-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all flex items-center gap-2 cursor-pointer">
-              <span>PDF Compressor</span>
-              <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
-            </button>
+          <Link href={getWorkspaceLink("pdf-compressor")} prefetch={false} className="px-6 py-3 border border-carbon bg-white text-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all flex items-center gap-2 cursor-pointer">
+            <span>PDF Compressor</span>
+            <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
           </Link>
         </div>
       </section>
+
 
       {/* Interactive Demo Pod Section */}
       <section className="structural-border bg-white mb-12 overflow-hidden flex flex-col lg:flex-row h-auto lg:h-[550px] rounded-lg shadow-xl">
@@ -486,7 +519,7 @@ export default function LandingPage() {
             Comprehensive Document & PDF Suite
           </h2>
           <p className="font-body-md text-sm sm:text-base text-on-surface-variant leading-relaxed">
-            In addition to our strict government spec resizers, colo provides a fully featured client-side engine supporting all standard operations for complete documents management.
+            In addition to our strict government spec resizers, morpee provides a fully featured secure hybrid engine supporting all standard operations for complete documents management.
           </p>
         </div>
 
@@ -523,9 +556,7 @@ export default function LandingPage() {
                   {feature.desc}
                 </p>
               </div>
-              <div className="mt-4 font-metadata text-[9px] text-primary uppercase tracking-wider font-bold">
-                [ Local Browser Utility ]
-              </div>
+
             </div>
           ))}
         </div>
@@ -560,8 +591,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">550 x 550 px (Min 350x350)</td>
                 <td className="p-4 font-metadata">20 KB - 50 KB</td>
                 <td className="p-4">
-                  <Link href="/workspace/image" className="text-primary hover:underline font-semibold font-metadata">
-                    [Resize Photo]
+                  <Link href={getWorkspaceLink("image")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Resize Photo
                   </Link>
                 </td>
               </tr>
@@ -571,8 +602,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">550 x 550 px (Min 350x350)</td>
                 <td className="p-4 font-metadata">20 KB - 50 KB</td>
                 <td className="p-4">
-                  <Link href="/workspace/image" className="text-primary hover:underline font-semibold font-metadata">
-                    [Resize Signature]
+                  <Link href={getWorkspaceLink("image")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Resize Signature
                   </Link>
                 </td>
               </tr>
@@ -582,8 +613,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">3.5 cm x 4.5 cm (350x450 px)</td>
                 <td className="p-4 font-metadata">20 KB - 50 KB</td>
                 <td className="p-4">
-                  <Link href="/workspace/image" className="text-primary hover:underline font-semibold font-metadata">
-                    [Resize Photo]
+                  <Link href={getWorkspaceLink("image")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Resize Photo
                   </Link>
                 </td>
               </tr>
@@ -593,8 +624,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">6.0 cm x 2.0 cm (280x120 px)</td>
                 <td className="p-4 font-metadata">10 KB - 20 KB</td>
                 <td className="p-4">
-                  <Link href="/workspace/image" className="text-primary hover:underline font-semibold font-metadata">
-                    [Resize Signature]
+                  <Link href={getWorkspaceLink("image")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Resize Signature
                   </Link>
                 </td>
               </tr>
@@ -604,8 +635,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">A4 Standard Format</td>
                 <td className="p-4 font-metadata">10 KB - 300 KB</td>
                 <td className="p-4">
-                  <Link href="/workspace/pdf" className="text-primary hover:underline font-semibold font-metadata">
-                    [Compress PDF]
+                  <Link href={getWorkspaceLink("pdf-compressor")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Compress PDF
                   </Link>
                 </td>
               </tr>
@@ -615,8 +646,8 @@ export default function LandingPage() {
                 <td className="p-4 font-metadata">Standard Portrait / Landscape</td>
                 <td className="p-4 font-metadata">Under 500 KB (Usually)</td>
                 <td className="p-4">
-                  <Link href="/workspace/pdf" className="text-primary hover:underline font-semibold font-metadata">
-                    [Compress PDF]
+                  <Link href={getWorkspaceLink("pdf-compressor")} prefetch={false} className="text-primary hover:underline font-semibold font-metadata">
+                    Compress PDF
                   </Link>
                 </td>
               </tr>
@@ -633,16 +664,16 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto space-y-3">
           {[
             {
-              q: "How do I compress and resize documents on colo?",
+              q: "How do I compress and resize documents on morpee?",
               a: "Navigate to the Image Optimizer for photo/signature resizing or the PDF Compressor for certificate files. Select a government preset (like UPSC or SSC), choose your file, adjust settings, and download your optimized, compliant file instantly."
             },
             {
               q: "Are my Aadhaar, PAN card, and certificates safe on this website?",
-              a: "Yes. Colo runs entirely in your browser's RAM using client-side WebAssembly. No files are uploaded to any server. Your sensitive government identity scans remain completely private and on your physical device."
+              a: "Yes. Document processing runs inside your browser's memory. While metadata, verification logging, and payment sync are managed securely via our server stack, your sensitive original files are processed locally."
             },
             {
               q: "Why does the UPSC portal reject compressed photos?",
-              a: "Portals reject uploads if they do not match exact pixel aspect ratios or have blurred edges. Colo applies intelligent canvas aspect anchoring and vector contrast enhancements to ensure uploads comply perfectly with portal requirements."
+              a: "Portals reject uploads if they do not match exact pixel aspect ratios or have blurred edges. Morpee applies intelligent canvas aspect anchoring and vector contrast enhancements to ensure uploads comply perfectly with portal requirements."
             },
             {
               q: "How can I merge multiple document scans into one PDF under 500KB?",
@@ -676,6 +707,96 @@ export default function LandingPage() {
           })}
         </div>
       </section>
+
+      {/* Business Compliance Footer */}
+      <footer className="mt-16 border-t border-carbon/10 pt-8 pb-12 grid grid-cols-1 md:grid-cols-2 gap-8 text-center md:text-left text-secondary font-metadata text-xs uppercase">
+        <div>
+          <div className="font-bold text-carbon mb-2">MORPEE Document Engine</div>
+          <p className="lowercase font-body-md text-[11px] leading-relaxed max-w-sm">
+            secure hybrid passport photo, signature, and PDF compressor for government portal registration forms.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center md:justify-end gap-x-6 gap-y-2">
+          <Link href="/terms" className="hover:text-carbon transition-colors">Terms & Conditions</Link>
+          <Link href="/privacy" className="hover:text-carbon transition-colors">Privacy Policy</Link>
+          <Link href="/refund" className="hover:text-carbon transition-colors">Refund Policy</Link>
+          <Link href="/contact" className="hover:text-carbon transition-colors">Contact Us</Link>
+        </div>
+      </footer>
+
+      {/* Comic Story Modal Overlay */}
+      {storyOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-carbon/80 backdrop-blur-sm select-none">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-4xl bg-[#fdfaf5] border-4 border-carbon p-6 md:p-8 relative shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] overflow-y-auto max-h-[90vh] rounded-md"
+          >
+            {/* Comic Balloon Header */}
+            <div className="flex justify-between items-center border-b-4 border-carbon pb-4 mb-6">
+              <h2 className="font-display-xl text-2xl uppercase tracking-widest text-carbon font-bold">
+                ⚡ The Origin of Morpee ⚡
+              </h2>
+              <button
+                onClick={() => setStoryOpen(false)}
+                className="w-10 h-10 border-2 border-carbon rounded-full flex items-center justify-center hover:bg-error hover:text-white transition-colors cursor-pointer font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[0px_0px_0px_0px_rgba(0,0,0,1)]"
+                aria-label="Close story modal"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            {/* Comic Image Strip */}
+            <div className="border-4 border-carbon bg-white p-2 rounded mb-6 shadow-inner">
+              <img
+                src="/morpee_story.png"
+                alt="Morpee Brand Story Manga strip"
+                className="w-full h-auto object-contain border border-carbon/25"
+              />
+            </div>
+
+            {/* Panel Narration Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-body-md text-xs text-carbon">
+              {/* Panel 1 */}
+              <div className="border-2 border-carbon p-5 relative bg-white rounded shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div className="absolute -top-3 left-4 bg-carbon text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold">
+                  Panel 1: The Sterile Past
+                </div>
+                <p className="mt-2 leading-relaxed">
+                  Our system started as <strong>COLO</strong>. Power-packed, yes, but the name felt like cold, industrial server colocation storage. It lacked soul.
+                </p>
+              </div>
+
+              {/* Panel 2 */}
+              <div className="border-2 border-carbon p-5 relative bg-white rounded shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div className="absolute -top-3 left-4 bg-[#05c46b] text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold border border-carbon">
+                  Panel 2: Shift to Morph
+                </div>
+                <p className="mt-2 leading-relaxed">
+                  Inspired by shape-shifting tech, the engine <strong>"Morphs"</strong> massive photos and certificates into precise portal constraints in your browser memory.
+                </p>
+              </div>
+
+              {/* Panel 3 */}
+              <div className="border-2 border-carbon p-5 relative bg-white rounded shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-between">
+                <div className="absolute -top-3 left-4 bg-[#ffa801] text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold border border-carbon">
+                  Panel 3: The Rupee Suffix
+                </div>
+                <p className="mt-2 leading-relaxed">
+                  With the double "ee" ending of the <strong>Rupee</strong>, morpee builds instant phonetic trust with Indian students who save money on registrations.
+                </p>
+              </div>
+            </div>
+            
+            {/* Modal Footer Caption */}
+            <div className="mt-6 text-center border-t-2 border-dashed border-carbon/25 pt-4">
+              <span className="font-metadata text-[10px] text-secondary uppercase tracking-widest font-bold">
+                morpee.me // active shape-shifting document engine
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
+

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Script from "next/script";
+import { showToast } from "@/utils/toast";
 
 interface RazorpayResponse {
   razorpay_order_id: string;
@@ -141,10 +142,10 @@ export default function BillingHub() {
 
           try {
             await verifyWithRetry();
-            alert("SECURE NODE REPORT: PAYMENT VERIFIED. CREDITS ALLOCATED.");
-            window.location.href = "/workspace/image";
+            showToast("SECURE NODE REPORT: PAYMENT VERIFIED. CREDITS ALLOCATED.", "success");
+            window.location.href = "/workspace?tool=image";
           } catch (err: any) {
-            alert(`PAYMENT_ERROR: Verification failed after retries. Reason: ${err.message || "SIGNATURE_AUDIT_FAILED"}. Your payment was captured; credits will sync in the background.`);
+            showToast(`PAYMENT_ERROR: Verification failed after retries. Reason: ${err.message || "SIGNATURE_AUDIT_FAILED"}. Your payment was captured; credits will sync in the background.`, "error");
           }
         },
         prefill: {
@@ -163,13 +164,13 @@ export default function BillingHub() {
       }
       const rzp = new customWindow.Razorpay(options);
       rzp.on("payment.failed", function (response: RazorpayErrorResponse) {
-        alert(`TRANSACTION_FAILED: ${response.error.description}`);
+        showToast(`TRANSACTION_FAILED: ${response.error.description}`, "error");
       });
       rzp.open();
     } catch (err) {
       const error = err as Error;
       console.error(error);
-      alert(`Razorpay Sandbox Alert: ${error.message || "Failed to initialize gateway"}`);
+      showToast(`Razorpay Sandbox Alert: ${error.message || "Failed to initialize gateway"}`, "error");
     } finally {
       setIsProcessingPayment(false);
     }

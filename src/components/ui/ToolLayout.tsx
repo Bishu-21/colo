@@ -15,17 +15,21 @@ export const ToolLayout: React.FC<ToolLayoutProps> = ({
   contentWidthClass = "w-full md:w-[58.34%]",
   className = "",
 }) => {
+  const hasHeightClass = className.includes("md:h-") || className.includes("h-") || className.includes("min-h-") || className.includes("md:min-h-");
+  const heightClass = hasHeightClass ? "" : "md:min-h-[calc(100vh-106px)]";
+
   return (
-    <main className={`pt-16 pb-[80px] min-h-screen flex flex-col md:flex-row ${className}`}>
+    <main className={`flex flex-col md:flex-row ${heightClass} ${className}`}>
       {/* Left Config Panel */}
-      <aside className={`${sidebarWidthClass} border-r border-carbon bg-surface-container-low/80 backdrop-blur-sm p-8 flex flex-col gap-8 custom-scrollbar overflow-y-auto`}>
+      <aside className={`${sidebarWidthClass} border-r border-carbon bg-surface-container-low/80 backdrop-blur-sm p-8 flex flex-col gap-8 custom-scrollbar overflow-y-auto md:h-full`}>
         {sidebar}
       </aside>
 
       {/* Right View Panel */}
-      <section className={`${contentWidthClass} flex flex-col`}>
+      <section className={`${contentWidthClass} flex flex-col md:h-full md:overflow-hidden`}>
         {children}
       </section>
     </main>
   );
 };
+

@@ -202,10 +202,8 @@ export default function BatchPortal() {
           </div>
           <div className="border-t border-carbon pt-4">
             <p className="font-metadata text-metadata text-secondary mb-4">LAST_LOGIN: SECURE_SESSION</p>
-            <Link href="/auth">
-              <button className="w-full py-2 bg-on-error text-error border border-error font-metadata text-metadata uppercase hover:bg-error hover:text-white transition-colors">
-                [TERMINATE_SESSION]
-              </button>
+            <Link href="/auth" className="block w-full py-2 bg-on-error text-error border border-error font-metadata text-metadata uppercase hover:bg-error hover:text-white transition-colors text-center">
+              [TERMINATE_SESSION]
             </Link>
           </div>
         </div>

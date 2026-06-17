@@ -1,4 +1,4 @@
-# COLO (Compressed Uploads)
+# MORPEE (Compressed Uploads)
 
 Secure, client-side, in-browser document resizer and PDF compressor designed for government portal upload specs (UPSC, SSC, NTA, JEE, NEET).
 

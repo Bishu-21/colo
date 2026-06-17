@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { showToast } from "@/utils/toast";
 
 export default function ApiHub() {
   const [showLiveToken, setShowLiveToken] = useState(false);
@@ -26,10 +27,10 @@ export default function ApiHub() {
     const randomHex = Math.random().toString(36).substring(2, 11);
     if (type === "live") {
       setLiveToken(`sk_live_${randomHex}_neural_4x92_alpha`);
-      alert("SECURE NODE: Live API token rolled. Update client integrations immediately.");
+      showToast("SECURE NODE: Live API token rolled. Update client integrations immediately.", "success");
     } else {
       setTestToken(`pk_test_${randomHex}_draft_mode_enabled`);
-      alert("SECURE NODE: Sandbox test API token rolled.");
+      showToast("SECURE NODE: Sandbox test API token rolled.", "success");
     }
   };
 
@@ -78,7 +79,7 @@ export default function ApiHub() {
               ROLL
             </button>
             <button
-              onClick={() => alert("Live token revoked. API gateway block initialized.")}
+              onClick={() => showToast("Live token revoked. API gateway block initialized.", "error")}
               className="flex-1 border border-error text-error py-2 font-label-bold text-label-bold uppercase hover:bg-error hover:text-white transition-all cursor-crosshair active:scale-95"
             >
               REVOKE
@@ -120,7 +121,7 @@ export default function ApiHub() {
               ROLL
             </button>
             <button
-              onClick={() => alert("Sandbox environment deactivated.")}
+              onClick={() => showToast("Sandbox environment deactivated.", "info")}
               className="flex-1 border border-outline py-2 font-label-bold text-label-bold uppercase hover:bg-carbon hover:text-white transition-all cursor-crosshair active:scale-95"
             >
               DISABLE

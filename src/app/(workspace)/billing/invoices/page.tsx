@@ -5,7 +5,8 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function InvoicesPage() {
-  const transactions = getLedgerHistory().reverse(); // Show newest first
+  const allTransactions = await getLedgerHistory();
+  const transactions = allTransactions.reverse(); // Show newest first
 
   return (
     <main className="pt-24 px-container-padding max-w-[1440px] mx-auto space-y-8 pb-16">
@@ -20,10 +21,8 @@ export default async function InvoicesPage() {
             *Append-only double-entry cryptographic financial logs.*
           </p>
         </div>
-        <Link href="/billing">
-          <button className="font-metadata text-metadata uppercase px-6 py-2 bg-carbon text-white rounded-full hover:bg-muted-teal transition-all">
-            [RETURN_TO_BILLING]
-          </button>
+        <Link href="/billing" className="font-metadata text-metadata uppercase px-6 py-2 bg-carbon text-white rounded-full hover:bg-muted-teal transition-all inline-block text-center">
+          [RETURN_TO_BILLING]
         </Link>
       </section>
 

@@ -61,6 +61,7 @@ function ShareViewPageContent() {
             const decrypted = await decryptFile(data.ciphertext, data.iv, data.metadata, key);
             setDecryptedFile(decrypted.file);
             setDecryptedUrl(decrypted.url);
+            fetch(`/api/share/${id}`, { method: "POST" }).catch(e => console.error(e));
           } else {
             throw new Error("DECRYPTION_KEY_MISSING");
           }
@@ -94,6 +95,7 @@ function ShareViewPageContent() {
 
       setDecryptedFile(decrypted.file);
       setDecryptedUrl(decrypted.url);
+      fetch(`/api/share/${id}`, { method: "POST" }).catch(e => console.error(e));
     } catch (err: any) {
       console.error(err);
       if (err.message === "DECRYPTION_FAILED") {
@@ -117,7 +119,7 @@ function ShareViewPageContent() {
       {/* Header */}
       <header className="bg-background border-b border-on-surface flex justify-between items-center w-full px-container-padding h-16 fixed top-0 z-50">
         <div className="font-headline-sm text-headline-sm font-bold text-on-surface tracking-widest uppercase">
-          <Link href="/">colo</Link>
+          <Link href="/">morpee</Link>
         </div>
         <div className="font-metadata text-metadata text-primary font-bold">
           [SECURE_SHARE_ROUTER]
@@ -136,7 +138,7 @@ function ShareViewPageContent() {
                 Crypto Decryption Node
               </h1>
               <p className="font-metadata text-[10px] text-secondary mt-1 uppercase">
-                Zero-Knowledge Offline Decryption Engine
+                Zero-Knowledge Client-Side Decryption Engine
               </p>
             </div>
 
@@ -158,13 +160,11 @@ function ShareViewPageContent() {
                   Secure Link Expired or Purged
                 </h2>
                 <p className="font-body-md text-xs text-secondary leading-relaxed">
-                  This shared document has exceeded its session lifetime or its single-download token cap. The file has been permanently deleted from COLO servers.
+                  This shared document has exceeded its session lifetime or its single-download token cap. The file has been permanently deleted from MORPEE servers.
                 </p>
                 <div className="pt-4">
-                  <Link href="/workspace">
-                    <button className="px-6 py-2.5 bg-carbon text-surface font-metadata text-metadata uppercase hover:bg-muted-teal transition-all rounded-full">
-                      [Go to Workspace]
-                    </button>
+                  <Link href="/workspace" className="px-6 py-2.5 bg-carbon text-surface font-metadata text-metadata uppercase hover:bg-muted-teal transition-all rounded-full inline-block">
+                    [Go to Workspace]
                   </Link>
                 </div>
               </div>
@@ -217,20 +217,16 @@ function ShareViewPageContent() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <a
+                   <a
                     href={decryptedUrl || "#"}
                     download={decryptedFile.name}
-                    className="w-full"
+                    className="w-full py-4 bg-primary text-white font-label-bold text-label-bold uppercase rounded-full hover:bg-carbon transition-colors flex items-center justify-center gap-2 select-none"
                   >
-                    <button className="w-full py-4 bg-primary text-white font-label-bold text-label-bold uppercase rounded-full hover:bg-carbon transition-colors flex items-center justify-center gap-2">
-                      Download File
-                      <span className="material-symbols-outlined text-[18px]">download</span>
-                    </button>
+                    Download File
+                    <span className="material-symbols-outlined text-[18px]">download</span>
                   </a>
-                  <Link href="/workspace" className="w-full">
-                    <button className="w-full py-3 border border-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-colors">
-                      [Go to Workspace]
-                    </button>
+                  <Link href="/workspace" className="w-full text-center py-3 border border-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-colors inline-block">
+                    [Go to Workspace]
                   </Link>
                 </div>
               </div>
@@ -285,7 +281,7 @@ function ShareViewPageContent() {
 
       {/* Footer */}
       <footer className="bg-carbon text-surface-bright font-metadata text-[10px] uppercase flex justify-between px-container-padding items-center h-10 border-t border-outline">
-        <span className="text-primary font-bold">COLO ZERO-KNOWLEDGE PROTOCOL v2</span>
+        <span className="text-primary font-bold">MORPEE ZERO-KNOWLEDGE PROTOCOL v2</span>
         <span className="text-surface-variant/60">FILES ARE DECRYPTED LOCALLY IN CLIENT RAM</span>
       </footer>
     </div>

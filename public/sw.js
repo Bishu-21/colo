@@ -1,4 +1,4 @@
-const CACHE_NAME = "colo-pwa-cache-v3";
+const CACHE_NAME = "morpee-pwa-cache-v3";
 const ASSETS_TO_CACHE = [
   "/",
   "/workspace/image",

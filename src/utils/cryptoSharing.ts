@@ -6,11 +6,17 @@
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const len = bytes.byteLength;
+  const chunk = 8192;
+  for (let i = 0; i < len; i += chunk) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + chunk) as unknown as number[]
+    );
   }
   return window.btoa(binary);
 }
+
 
 // Helper: Convert Base64 to ArrayBuffer
 function base64ToArrayBuffer(base64: string): ArrayBuffer {

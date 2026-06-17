@@ -3,29 +3,29 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "colo - UPSC, SSC, & Govt Portal Document Optimizer",
-    template: "%s | COLO"
+    default: "morpee - UPSC, SSC, & Govt Portal Document Optimizer",
+    template: "%s | MORPEE"
   },
-  description: "Compress, resize, and digitize passport photographs, signatures, and certificates to exact government portal specifications (UPSC, SSC, NTA). 100% client-side, offline, and secure.",
+  description: "Compress, resize, and digitize passport photographs, signatures, and certificates to exact government portal specifications (UPSC, SSC, NTA). Secure server-side verification, local processing & storage hybrid.",
   keywords: [
     "UPSC photo resizer",
     "SSC signature resizer",
     "government portal document compressor",
-    "offline pdf compressor",
+    "hybrid pdf compressor",
     "Aadhaar card scanner",
-    "client-side ocr",
+    "secure hybrid ocr",
     "local-first pdf editor",
     "secure document compressor"
   ],
-  metadataBase: new URL("https://colo.secure.node"),
+  metadataBase: new URL("https://morpee.secure.node"),
   alternates: {
     canonical: "/"
   },
   openGraph: {
-    title: "colo - UPSC, SSC, & Govt Portal Document Optimizer",
-    description: "Compress, resize, and digitize passport photographs, signatures, and certificates to exact government portal specifications. 100% client-side, offline, and secure.",
-    url: "https://colo.secure.node",
-    siteName: "COLO",
+    title: "morpee - UPSC, SSC, & Govt Portal Document Optimizer",
+    description: "Compress, resize, and digitize passport photographs, signatures, and certificates to exact government portal specifications. Secure server-side verification, local processing & storage hybrid.",
+    url: "https://morpee.secure.node",
+    siteName: "MORPEE",
     locale: "en_IN",
     type: "website",
     images: [
@@ -33,14 +33,14 @@ export const metadata: Metadata = {
         url: "/screenshot-desktop.png",
         width: 1200,
         height: 630,
-        alt: "COLO - Secure Offline Document Compiler"
+        alt: "MORPEE - Secure Hybrid Document Compiler"
       }
     ]
   },
   twitter: {
     card: "summary_large_image",
-    title: "colo - UPSC, SSC, & Govt Portal Document Optimizer",
-    description: "Compress, resize, and digitize documents locally under strict portal file size limits. 100% secure.",
+    title: "morpee - UPSC, SSC, & Govt Portal Document Optimizer",
+    description: "Compress, resize, and digitize documents with hybrid local/server optimization under portal limits.",
     images: ["/screenshot-desktop.png"]
   },
   robots: {

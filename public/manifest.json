@@ -1,6 +1,6 @@
 {
-  "name": "COLO - Compressed Uploads",
-  "short_name": "COLO",
+  "name": "MORPEE - Compressed Uploads",
+  "short_name": "MORPEE",
   "description": "Secure client-side resizer and PDF compressor for government exam portals (UPSC, SSC, NTA).",
   "start_url": "/",
   "display": "standalone",

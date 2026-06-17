@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { showToast } from "@/utils/toast";
 
 interface DiagnosticReport {
   userAgent: string;
@@ -21,8 +22,9 @@ export default function OpsPage() {
   const [fps, setFps] = useState<number>(60);
   const [fpsHistory, setFpsHistory] = useState<number[]>(Array(30).fill(60));
   const [cmdInput, setCmdInput] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const [consoleLog, setConsoleLog] = useState<string[]>([
-    "COLO DIAGNOSTICS: Booting runtime checker...",
+    "MORPEE DIAGNOSTICS: Booting runtime checker...",
     "TYPE 'help' FOR LIST OF CAPABILITY ACTIONS.",
     "READY."
   ]);
@@ -177,7 +179,7 @@ export default function OpsPage() {
       response = `err: Command '${cmd}' unrecognized. Enter 'help' for options.`;
     }
 
-    setConsoleLog((prev) => [...prev, `user@colo_client:~$ ${cmd}`, response]);
+    setConsoleLog((prev) => [...prev, `user@morpee_client:~$ ${cmd}`, response]);
     setCmdInput("");
   };
 
@@ -331,10 +333,8 @@ export default function OpsPage() {
         </div>
         
         <div className="p-4 bg-neutral-50 text-center border-t border-outline flex flex-col gap-2">
-          <Link href="/">
-            <button className="w-full py-2 border border-carbon text-carbon font-label-bold text-xs uppercase hover:bg-carbon hover:text-white transition-all">
-              Return to Workspace
-            </button>
+          <Link href="/" className="block w-full py-2 border border-carbon text-carbon font-label-bold text-xs uppercase hover:bg-carbon hover:text-white transition-all text-center">
+            Return to Workspace
           </Link>
         </div>
       </section>
@@ -358,7 +358,7 @@ export default function OpsPage() {
             </div>
 
             <form onSubmit={handleCommandSubmit} className="flex items-center border-b border-outline-variant pb-1">
-              <span className="font-metadata text-[10px] text-primary-fixed-dim mr-2">user@colo_client:~$</span>
+              <span className="font-metadata text-[10px] text-primary-fixed-dim mr-2">user@morpee_client:~$</span>
               <input
                 value={cmdInput}
                 onChange={(e) => setCmdInput(e.target.value)}
@@ -374,19 +374,35 @@ export default function OpsPage() {
               <div className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse"></div>
               <span className="font-label-bold text-xs uppercase">Client Runtime Sandbox Nominal</span>
             </div>
-            <button
-              onClick={async () => {
-                const conf = confirm("Wipe all local settings and diagnostics caches?");
-                if (conf) {
-                  localStorage.clear();
-                  sessionStorage.clear();
-                  setConsoleLog((prev) => [...prev, "SYSTEM: Purged localStorage & sessionStorage cache."]);
-                }
-              }}
-              className="w-full bg-white text-carbon font-label-bold text-xs py-2.5 uppercase hover:bg-primary hover:text-white transition-all"
-            >
-              Clear Storage Cache
-            </button>
+            {!confirmClear ? (
+              <button
+                onClick={() => setConfirmClear(true)}
+                className="w-full bg-white text-carbon font-label-bold text-xs py-2.5 uppercase hover:bg-primary hover:text-white transition-all"
+              >
+                Clear Storage Cache
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    setConsoleLog((prev) => [...prev, "SYSTEM: Purged localStorage & sessionStorage cache."]);
+                    showToast("Local storage caches cleared.", "success");
+                    setConfirmClear(false);
+                  }}
+                  className="flex-1 bg-error text-white font-label-bold text-xs py-2.5 uppercase hover:bg-error/80 transition-all"
+                >
+                  Confirm Wipe
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="flex-1 bg-white text-carbon border border-carbon font-label-bold text-xs py-2.5 uppercase hover:bg-surface-container-high transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </section>

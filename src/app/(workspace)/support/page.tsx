@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { showToast } from "@/utils/toast";
 
 interface FAQ {
   q: string;
@@ -13,12 +14,12 @@ const FAQS: FAQ[] = [
     a: "Government exam portals like UPSC and SSC check files against binary constraints. If an image is stretched during compression, or if its aspect ratio deviates by even a single pixel from the requested parameters (e.g. 550x550px for UPSC), the portal scripts flag an automated error. Select our official presets to force exact resolution bounds and prevent portal rejection.",
   },
   {
-    q: "How does 100% Client-Side Wasm processing protect my privacy?",
-    a: "Under standard online compressors, files are uploaded to cloud servers, risking exposure of sensitive documents like Aadhaar cards or certificates. COLO optimizes files directly in your browser's RAM memory using WebAssembly (Wasm). No document bytes ever touch our servers.",
+    q: "How does local Wasm processing protect my privacy?",
+    a: "Under standard online compressors, files are uploaded to cloud servers and stored on disk, risking exposure of sensitive documents like Aadhaar cards or certificates. MORPEE sends files over encrypted HTTPS to authenticated servers where they are processed in volatile memory only—never written to persistent disk. Session security and billing are handled by our secure backend.",
   },
   {
     q: "What is Legibility-preserving PDF Downsampling?",
-    a: "Standard compression algorithms blur small text characters, making degree marks and certificates illegible. COLO rasterizes PDF layers page-by-page at exactly 150 DPI and preserves outline vectors to ensure that micro-text (like dates and marksheet cells) remains readable.",
+    a: "Standard compression algorithms blur small text characters, making degree marks and certificates illegible. MORPEE rasterizes PDF layers page-by-page at exactly 150 DPI and preserves outline vectors to ensure that micro-text (like dates and marksheet cells) remains readable.",
   },
 ];
 
@@ -29,10 +30,10 @@ export default function SupportPage() {
   const submitTicket = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticketSubject || !ticketBody) {
-      alert("Please fill in both the Subject and Details fields.");
+      showToast("Please fill in both the Subject and Details fields.", "error");
       return;
     }
-    alert("Support Ticket Submitted: A support representative will review your request shortly.");
+    showToast("Support Ticket Submitted: A support representative will review your request shortly.", "success");
     setTicketSubject("");
     setTicketBody("");
   };
@@ -74,10 +75,10 @@ export default function SupportPage() {
         <div className="border border-carbon bg-[#f8f9fa] p-6 mt-6 rounded shadow-inner">
           <h3 className="font-label-bold text-label-bold uppercase text-carbon border-b border-grid-line pb-2 mb-4 flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-lg">install_desktop</span>
-            PWA Offline Integration Guide
+            PWA Secure Hybrid Integration Guide
           </h3>
           <p className="font-body-md text-xs text-on-surface-variant leading-relaxed mb-4">
-            COLO is built as a Progressive Web App (PWA). You can install it on your device and optimize all your photographs, signatures, and certificates completely offline without an internet connection.
+            MORPEE is built as a Progressive Web App (PWA). You can install it on your device. While core document resizing runs locally in your browser memory for speed and privacy, an online connection is required to authenticate your session, check premium credits, and verify orders securely.
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 font-metadata text-[11px] leading-relaxed">

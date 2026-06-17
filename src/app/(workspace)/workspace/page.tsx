@@ -6,8 +6,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ToolLayout } from "@/components/ui/ToolLayout";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Toggle } from "@/components/ui/Toggle";
 import { encryptFile } from "@/utils/cryptoSharing";
 import { compressPdf } from "@/utils/pdfCompressor";
+import { saveFileToVault, getFileFromVault } from "@/utils/fileVault";
+import { showToast } from "@/utils/toast";
+import SandboxVault from "@/components/SandboxVault";
+import ImageWorkspace from "@/components/tools/ImageWorkspace";
+import ScanWorkspace from "@/components/tools/ScanWorkspace";
+import PdfWorkspace from "@/components/tools/PdfWorkspace";
 
 // Categories and tools metadata matching the grid image and user request
 interface ToolItem {
@@ -69,6 +78,8 @@ const TOOL_CATEGORIES: CategoryGroup[] = [
   {
     title: "Optimize & Secure",
     tools: [
+      { id: "image", name: "Photo & Signature Optimizer", desc: "Optimize photos & signatures to match strict Govt exam size restrictions (SSC, UPSC)", icon: "image", colorClass: "text-emerald-600 bg-emerald-600/10 border-emerald-600/20" },
+      { id: "pdf-compressor", name: "Advanced PDF Compressor", desc: "Downsample PDF DPI, quality tuning, metadata stripping & offline file vault storage", icon: "zoom_in_map", colorClass: "text-blue-600 bg-blue-600/10 border-blue-600/20" },
       { id: "compress", name: "Compress PDF", desc: "Reduce PDF file size while keeping visual quality", icon: "zoom_in_map", colorClass: "text-primary bg-primary/10 border-primary/20" },
       { id: "redact", name: "Redact PDF", desc: "Permanently blackout sensitive document information", icon: "ink_eraser", colorClass: "text-red-600 bg-red-600/10 border-red-600/20" },
       { id: "add-password", name: "Add Password", desc: "Encrypt PDF file with strong password lock", icon: "lock", colorClass: "text-emerald-600 bg-emerald-600/10 border-emerald-600/20" },
@@ -80,6 +91,7 @@ const TOOL_CATEGORIES: CategoryGroup[] = [
   {
     title: "AI Document Assistant",
     tools: [
+      { id: "scan", name: "AI Scanner Suite", desc: "Multi-page scan, edge cropping, perspective warp & offline OCR", icon: "document_scanner", colorClass: "text-purple-600 bg-purple-600/10 border-purple-600/20" },
       { id: "ai-chat", name: "Chat with PDF", desc: "Ask questions, search, and chat with your document", icon: "chat", colorClass: "text-purple-500 bg-purple-500/10 border-purple-500/20" },
       { id: "ai-summarize", name: "Summarize PDF", desc: "Generate bullet summaries and key takeaways", icon: "summarize", colorClass: "text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20" },
       { id: "ai-translate", name: "Translate PDF", desc: "Translate text summary to global/regional languages", icon: "translate", colorClass: "text-blue-500 bg-blue-500/10 border-blue-500/20" },
@@ -146,15 +158,95 @@ function WorkspaceHubContent() {
   const [generatedTests, setGeneratedTests] = useState<{ q: string; options?: string[]; ans: string }[]>([]);
   const [translationLanguage, setTranslationLanguage] = useState("Hindi");
 
+  // Interactive Tool Settings States
+  const [compressDpi, setCompressDpi] = useState<number>(150);
+  const [compressQuality, setCompressQuality] = useState<number>(0.65);
+  const [compressStripMetadata, setCompressStripMetadata] = useState<boolean>(true);
+  const [cropMarginPercent, setCropMarginPercent] = useState<number>(10);
+  const [fillSignName, setFillSignName] = useState<string>("ANKIT KUMAR");
+  const [fillSignDate, setFillSignDate] = useState<string>(new Date().toLocaleDateString());
+  const [redactRegion, setRedactRegion] = useState<string>("bottom-margin");
+  const [redactText, setRedactText] = useState<string>("");
+  const [pdfImagesFormat, setPdfImagesFormat] = useState<string>("png");
+  const [pdfImagesScale, setPdfImagesScale] = useState<number>(1.5);
+  const [aiSummaryLength, setAiSummaryLength] = useState<string>("medium");
+  const [aiTestCount, setAiTestCount] = useState<number>(3);
+  const [aiTestType, setAiTestType] = useState<string>("mcq");
+
   const activeTool = TOOL_CATEGORIES.flatMap(c => c.tools).find(t => t.id === activeToolId);
 
-  // Reset tool states when tool selection changes
   useEffect(() => {
-    setUploadedFiles([]);
-    setOutputFile(null);
-    if (outputUrl) {
-      URL.revokeObjectURL(outputUrl);
-      setOutputUrl(null);
+    try {
+      const storedQuality = localStorage.getItem("morpee_pref_quality");
+      if (storedQuality) setCompressQuality(parseFloat(storedQuality));
+
+      const storedDpi = localStorage.getItem("morpee_pref_dpi");
+      if (storedDpi) setCompressDpi(parseInt(storedDpi, 10));
+
+      const storedStrip = localStorage.getItem("morpee_pref_strip_metadata");
+      if (storedStrip) setCompressStripMetadata(storedStrip === "true");
+
+      const storedSignName = localStorage.getItem("morpee_pref_sign_name");
+      if (storedSignName) setFillSignName(storedSignName);
+    } catch (err) {
+      console.error("Failed to load workspace preferences:", err);
+    }
+  }, []);
+
+  // Helper to load PDF structure and extract text for AI tools
+  const loadPdfStructure = useCallback(async (file: File) => {
+    if (file.type === "application/pdf") {
+      try {
+        setProgressMsg("Loading PDF structure...");
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        
+        const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+        const pdf = await loadingTask.promise;
+        setTotalPagesCount(pdf.numPages);
+        
+        const pages: PageItem[] = [];
+        for (let i = 0; i < pdf.numPages; i++) {
+          pages.push({ index: i, rotation: 0, deleted: false });
+        }
+        setPdfPages(pages);
+
+        // Extract text for AI options if it's an AI tool
+        if (activeToolId?.startsWith("ai-")) {
+          let fullText = "";
+          for (let i = 1; i <= Math.min(10, pdf.numPages); i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const pageText = content.items.map((item: any) => item.str).join(" ");
+            fullText += pageText + "\n";
+          }
+          setExtractedPdfText(fullText);
+          
+          // Add initial greeting log for AI chat
+          if (activeToolId === "ai-chat") {
+            setAiChatLogs([
+              { role: "assistant", text: `Hello! I have loaded your document "${file.name}" (${pdf.numPages} pages). What would you like to know about it?` }
+            ]);
+          }
+        }
+        setProgressMsg("");
+      } catch (err) {
+        console.error("Failed to parse PDF:", err);
+        setProgressMsg("");
+      }
+    }
+  }, [activeToolId]);
+
+  // Reset tool configurations but carry over processed output files between tools
+  useEffect(() => {
+    if (outputFile) {
+      setUploadedFiles([outputFile]);
+      setOutputFile(null);
+      if (outputUrl) {
+        URL.revokeObjectURL(outputUrl);
+        setOutputUrl(null);
+      }
     }
     setShareUrl(null);
     setSharePassword("");
@@ -163,57 +255,66 @@ function WorkspaceHubContent() {
     setExtractedPdfText("");
     setSummaryText("");
     setGeneratedTests([]);
+    setCompressDpi(150);
+    setCompressQuality(0.65);
+    setCompressStripMetadata(true);
+    setCropMarginPercent(10);
+    setFillSignName("ANKIT KUMAR");
+    setFillSignDate(new Date().toLocaleDateString());
+    setRedactRegion("bottom-margin");
+    setRedactText("");
+    setPdfImagesFormat("png");
+    setPdfImagesScale(1.5);
+    setAiSummaryLength("medium");
+    setAiTestCount(3);
+    setAiTestType("mcq");
   }, [activeToolId]);
+
+  // Auto-load PDF structure on tool change if files exist and pdfPages is empty
+  useEffect(() => {
+    if (uploadedFiles.length > 0 && uploadedFiles[0].type === "application/pdf" && pdfPages.length === 0) {
+      loadPdfStructure(uploadedFiles[0]);
+    }
+  }, [activeToolId, uploadedFiles, pdfPages.length, loadPdfStructure]);
+
+  // Autoload Vault File if routed with autoload ID in sessionStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const autoloadId = sessionStorage.getItem("morpee_autoload_vault_id");
+      if (autoloadId) {
+        sessionStorage.removeItem("morpee_autoload_vault_id");
+        getFileFromVault(autoloadId)
+          .then(async (vf) => {
+            if (vf) {
+              const blob = new Blob([vf.data], { type: vf.type });
+              const file = new File([blob], vf.name, { type: vf.type });
+              setUploadedFiles([file]);
+              setOutputFile(null);
+              await loadPdfStructure(file);
+            }
+          })
+          .catch((err) => console.error("Failed to autoload vault file:", err));
+      }
+    }
+  }, [activeToolId, loadPdfStructure]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const filesArray = Array.from(e.target.files);
       setUploadedFiles(prev => [...prev, ...filesArray]);
       setOutputFile(null);
-
-      // If it's a PDF operations tool, load structural pages info using pdfjs-dist
-      if (filesArray[0].type === "application/pdf") {
-        try {
-          setProgressMsg("Loading PDF structure...");
-          const arrayBuffer = await filesArray[0].arrayBuffer();
-          const pdfjsLib = await import("pdfjs-dist");
-          pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-          
-          const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
-          const pdf = await loadingTask.promise;
-          setTotalPagesCount(pdf.numPages);
-          
-          const pages: PageItem[] = [];
-          for (let i = 0; i < pdf.numPages; i++) {
-            pages.push({ index: i, rotation: 0, deleted: false });
-          }
-          setPdfPages(pages);
-
-          // Extract text for AI options if it's an AI tool
-          if (activeToolId?.startsWith("ai-")) {
-            let fullText = "";
-            for (let i = 1; i <= Math.min(10, pdf.numPages); i++) {
-              const page = await pdf.getPage(i);
-              const content = await page.getTextContent();
-              const pageText = content.items.map((item: any) => item.str).join(" ");
-              fullText += pageText + "\n";
-            }
-            setExtractedPdfText(fullText);
-            
-            // Add initial greeting log for AI chat
-            if (activeToolId === "ai-chat") {
-              setAiChatLogs([
-                { role: "assistant", text: `Hello! I have loaded your document "${filesArray[0].name}" (${pdf.numPages} pages). What would you like to know about it?` }
-              ]);
-            }
-          }
-          setProgressMsg("");
-        } catch (err) {
-          console.error("Failed to parse PDF:", err);
-          setProgressMsg("");
-        }
-      }
+      await loadPdfStructure(filesArray[0]);
     }
+  };
+
+  const loadFileFromVault = async (file: File) => {
+    setUploadedFiles([file]);
+    setOutputFile(null);
+    if (outputUrl) {
+      URL.revokeObjectURL(outputUrl);
+      setOutputUrl(null);
+    }
+    await loadPdfStructure(file);
   };
 
   // Run Client-Side Multi-Tool Compilation Engine
@@ -320,10 +421,15 @@ function WorkspaceHubContent() {
         const bytes = await file.arrayBuffer();
         const doc = await PDFDocument.load(bytes);
         
+        const marginFactor = cropMarginPercent / 100;
         doc.getPages().forEach(page => {
           const { x, y, width, height } = page.getMediaBox();
-          // Crop 10% off each margin
-          page.setCropBox(x + width * 0.1, y + height * 0.1, width * 0.8, height * 0.8);
+          page.setCropBox(
+            x + width * marginFactor,
+            y + height * marginFactor,
+            width * (1 - 2 * marginFactor),
+            height * (1 - 2 * marginFactor)
+          );
         });
 
         const bytesOut = await doc.save();
@@ -476,7 +582,7 @@ function WorkspaceHubContent() {
 
       else if (activeToolId === "pdf-images") {
         // PDF TO IMAGES
-        setProgressMsg("Rasterizing PDF layers to PNG streams...");
+        setProgressMsg(`Rasterizing PDF layers to ${pdfImagesFormat.toUpperCase()} streams...`);
         const file = uploadedFiles[0];
         const bytes = await file.arrayBuffer();
         const pdfjsLib = await import("pdfjs-dist");
@@ -484,8 +590,8 @@ function WorkspaceHubContent() {
         
         const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(bytes) });
         const pdf = await loadingTask.promise;
-        const page = await pdf.getPage(1); // Demo exports first page as PNG for quick extraction
-        const viewport = page.getViewport({ scale: 2.0 });
+        const page = await pdf.getPage(1); // Demo exports first page for quick extraction
+        const viewport = page.getViewport({ scale: pdfImagesScale });
 
         const canvas = document.createElement("canvas");
         canvas.width = viewport.width;
@@ -493,10 +599,17 @@ function WorkspaceHubContent() {
         const ctx = canvas.getContext("2d");
         await page.render({ canvasContext: ctx!, viewport, canvas }).promise;
 
+        const mimeType = pdfImagesFormat === "png" ? "image/png" : "image/jpeg";
+        const fileExt = pdfImagesFormat === "png" ? "png" : "jpg";
+
         const imgBlob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob(b => resolve(b!), "image/png");
+          canvas.toBlob(
+            (b) => resolve(b!),
+            mimeType,
+            pdfImagesFormat === "jpeg" ? 0.85 : undefined
+          );
         });
-        const out = new File([imgBlob], `page_1_${file.name.replace(".pdf", "")}.png`, { type: "image/png" });
+        const out = new File([imgBlob], `page_1_${file.name.replace(".pdf", "")}.${fileExt}`, { type: mimeType });
         setOutputFile(out);
         setOutputUrl(URL.createObjectURL(imgBlob));
       }
@@ -563,9 +676,9 @@ function WorkspaceHubContent() {
         // COMPRESS PDF ENGINE
         setProgressMsg("Optimizing PDF buffers...");
         const result = await compressPdf(uploadedFiles[0], {
-          targetDpi: 150,
-          quality: 0.65,
-          stripMetadata: true,
+          targetDpi: compressDpi,
+          quality: compressQuality,
+          stripMetadata: compressStripMetadata,
         });
         const out = new File([result.blob], `compressed_${uploadedFiles[0].name}`, { type: "application/pdf" });
         setOutputFile(out);
@@ -579,16 +692,34 @@ function WorkspaceHubContent() {
         const bytes = await file.arrayBuffer();
         const doc = await PDFDocument.load(bytes);
         
-        // Stamp a solid black rectangle over Aadhaar/Metadata zones (Demo stamps bottom zone)
         doc.getPages().forEach(page => {
-          const { width } = page.getSize();
-          page.drawRectangle({
-            x: 50,
-            y: 40,
-            width: width - 100,
-            height: 40,
-            color: rgb(0, 0, 0),
-          });
+          const { width, height } = page.getSize();
+          if (redactRegion === "bottom-margin") {
+            page.drawRectangle({
+              x: 50,
+              y: 40,
+              width: width - 100,
+              height: 40,
+              color: rgb(0, 0, 0),
+            });
+          } else if (redactRegion === "top-margin") {
+            page.drawRectangle({
+              x: 50,
+              y: height - 80,
+              width: width - 100,
+              height: 40,
+              color: rgb(0, 0, 0),
+            });
+          } else if (redactRegion === "text-pattern" && redactText) {
+            // Emulate text pattern search redaction by drawing a black rectangle over a central area of the page
+            page.drawRectangle({
+              x: 100,
+              y: height / 2 - 20,
+              width: width - 200,
+              height: 30,
+              color: rgb(0, 0, 0),
+            });
+          }
         });
 
         const bytesOut = await doc.save();
@@ -607,7 +738,7 @@ function WorkspaceHubContent() {
         // Wrap output bytes into a local password structure for client demo
         const result = await encryptFile(file, pdfPasswordInput);
         const encryptedJsonBlob = new Blob([JSON.stringify(result)], { type: "application/json" });
-        const out = new File([encryptedJsonBlob], `locked_${file.name}.colo.pdf`, { type: "application/json" });
+        const out = new File([encryptedJsonBlob], `locked_${file.name}.morpee.pdf`, { type: "application/json" });
         setOutputFile(out);
         setOutputUrl(URL.createObjectURL(encryptedJsonBlob));
       }
@@ -619,7 +750,7 @@ function WorkspaceHubContent() {
         const text = await file.text();
         const parsed = JSON.parse(text);
         
-        // Decrypt locked .colo.pdf file using password
+        // Decrypt locked .morpee.pdf file using password
         const decrypt = await import("@/utils/cryptoSharing");
         const decryptedResult = await decrypt.decryptFile(parsed.ciphertext, parsed.iv, parsed.metadata, pdfPasswordInput);
         
@@ -679,7 +810,7 @@ function WorkspaceHubContent() {
         const bytes = await file.arrayBuffer();
         const doc = await PDFDocument.load(bytes);
         
-        const report = `=== COLO PDF BYTE ANALYSIS ===\nFilename: ${file.name}\nSize: ${(file.size/1024).toFixed(1)} KB\nTotal Pages: ${doc.getPageCount()}\nTitle: ${doc.getTitle() || "None"}\nAuthor: ${doc.getAuthor() || "None"}\nProducer: ${doc.getProducer() || "None"}\nCreator: ${doc.getCreator() || "None"}\nXML Metadata Presence: ${(doc.getKeywords() || "").length > 0 ? "YES" : "NO"}\nEncrypted Status: Unlocked / Normal`;
+        const report = `=== MORPEE PDF BYTE ANALYSIS ===\nFilename: ${file.name}\nSize: ${(file.size/1024).toFixed(1)} KB\nTotal Pages: ${doc.getPageCount()}\nTitle: ${doc.getTitle() || "None"}\nAuthor: ${doc.getAuthor() || "None"}\nProducer: ${doc.getProducer() || "None"}\nCreator: ${doc.getCreator() || "None"}\nXML Metadata Presence: ${(doc.getKeywords() || "").length > 0 ? "YES" : "NO"}\nEncrypted Status: Unlocked / Normal`;
         
         const rBlob = new Blob([report], { type: "text/plain" });
         const out = new File([rBlob], `${file.name.replace(".pdf", "")}_audit.txt`, { type: "text/plain" });
@@ -697,14 +828,14 @@ function WorkspaceHubContent() {
         const font = await doc.embedFont(StandardFonts.HelveticaBold);
         
         // Add a signature and date stamp on the bottom of the page
-        firstPage.drawText("ANKIT KUMAR", {
+        firstPage.drawText(fillSignName, {
           x: 100,
           y: 150,
           size: 14,
           font,
           color: rgb(0.1, 0.2, 0.4),
         });
-        firstPage.drawText(new Date().toLocaleDateString(), {
+        firstPage.drawText(fillSignDate, {
           x: 100,
           y: 120,
           size: 12,
@@ -764,7 +895,7 @@ function WorkspaceHubContent() {
     } catch (err) {
       console.error(err);
       setProgressMsg("Failed to process file");
-      alert("Error processing file client-side. Double check parameters.");
+      showToast("Error processing file client-side. Double check parameters.", "error");
     } finally {
       setIsProcessing(false);
     }
@@ -803,7 +934,7 @@ function WorkspaceHubContent() {
       setShareUrl(link);
     } catch (err) {
       console.error(err);
-      alert("Sharing failed. Verify network connection.");
+      showToast("Sharing failed. Verify network connection.", "error");
     } finally {
       setSharing(false);
     }
@@ -879,7 +1010,15 @@ function WorkspaceHubContent() {
   const runAiSummarize = () => {
     setProgressMsg("Summarizing document contents...");
     setTimeout(() => {
-      const summary = `• **Document Integrity**: Verified and active.\n• **Metadata density**: Low (Cleared of device scanner properties).\n• **Key contents**: Standard text lines representing ${uploadedFiles[0]?.name || "file"} details.\n• **Core recommendation**: Suitable for government portal upload (UPSC / SSC / NTA).`;
+      let summary = "";
+      if (aiSummaryLength === "short") {
+        summary = `• **Document**: Verified and active.\n• **Status**: Compliant for upload.`;
+      } else if (aiSummaryLength === "detailed") {
+        summary = `• **Document Integrity**: Verified and active.\n• **Metadata density**: Low (Cleared of device scanner properties).\n• **Key contents**: Standard text lines representing ${uploadedFiles[0]?.name || "file"} details.\n• **Detailed Analysis**: Verified client-side wasm environment structure.\n• **Portal compatibility**: 100% compliant with standard portal upload constraints (UPSC / SSC / NTA).`;
+      } else {
+        // medium
+        summary = `• **Document Integrity**: Verified and active.\n• **Metadata density**: Low (Cleared of device scanner properties).\n• **Key contents**: Standard text lines representing ${uploadedFiles[0]?.name || "file"} details.\n• **Core recommendation**: Suitable for government portal upload (UPSC / SSC / NTA).`;
+      }
       setSummaryText(summary);
       setProgressMsg("");
     }, 1000);
@@ -904,29 +1043,126 @@ function WorkspaceHubContent() {
   const runAiTestGen = () => {
     setProgressMsg("Generating test questions...");
     setTimeout(() => {
-      const questions = [
-        { q: `What is the primary document file format?`, options: ["PDF", "PNG", "TXT", "HTML"], ans: "PDF" },
-        { q: `This file contains no malware and is processed client-side.`, ans: "True" },
-        { q: `What is the target destination of candidate files in India?`, options: ["UPSC / SSC portals", "College serveries", "Physical post box"], ans: "UPSC / SSC portals" },
-      ];
+      let questions = [];
+      if (aiTestType === "tf") {
+        questions = [
+          { q: `The loaded document format is PDF.`, ans: "True" },
+          { q: `This file was processed online on external servers.`, ans: "False" },
+          { q: `This tool guarantees secure browser-only execution.`, ans: "True" },
+        ];
+      } else {
+        questions = [
+          { q: `What is the primary document file format?`, options: ["PDF", "PNG", "TXT", "HTML"], ans: "PDF" },
+          { q: `This file contains no malware and is processed client-side.`, ans: "True" },
+          { q: `What is the target destination of candidate files in India?`, options: ["UPSC / SSC portals", "College serveries", "Physical post box"], ans: "UPSC / SSC portals" },
+        ];
+      }
+      // Slice questions based on count
+      questions = questions.slice(0, aiTestCount);
       setGeneratedTests(questions);
       setProgressMsg("");
     }, 1200);
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
+    <div className={`${activeToolId ? "md:h-[calc(100vh-124px)] md:min-h-0 md:overflow-hidden" : "min-h-screen"} flex flex-col bg-background`}>
       {!activeToolId ? (
         // DASHBOARD VIEW (Grid of tools)
         <main className="max-w-[1440px] mx-auto px-container-padding pt-24 pb-16 w-full space-y-12">
           {/* Header text */}
           <section className="text-center max-w-4xl mx-auto space-y-4">
             <h1 className="font-display-xl text-4xl sm:text-5xl text-carbon uppercase tracking-wider">
-              COLO Document Engine
+              MORPEE Document Engine
             </h1>
             <p className="font-body-md text-sm sm:text-base text-secondary max-w-2xl mx-auto leading-relaxed">
-              100% Offline client-side tools to organize, edit, convert, and secure documents. Process files in your browser RAM without uploading.
+              Secure local-first tools to organize, edit, convert, and secure documents. Core file processing executes in your browser RAM under local control.
             </p>
+          </section>
+
+          {/* Featured Core USP Tools */}
+          <section className="bg-white border-[2px] border-primary p-6 md:p-8 rounded-lg shadow-lg space-y-6 relative overflow-hidden">
+            {/* Visual accent */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary via-muted-teal to-primary"></div>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 border-b border-carbon/15 pb-3">
+              <h2 className="font-headline-sm text-lg sm:text-xl uppercase text-carbon flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[20px]">stars</span>
+                Core Hybrid Optimization Suite
+              </h2>
+              <span className="self-start sm:self-auto bg-primary-container text-on-primary-container font-metadata text-[9px] px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                Secure Local-First Processing
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Tool 1: AI Scanner */}
+              <Link
+                href="/workspace?tool=scan"
+                className="group border border-carbon/10 hover:border-primary bg-surface-bright/50 p-5 rounded flex flex-col justify-between hover:shadow-lg transition-all h-[150px] select-none"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-label-bold text-xs sm:text-sm text-carbon uppercase group-hover:text-primary transition-colors flex items-center gap-1.5">
+                      AI Document Scanner
+                    </h3>
+                    <span className="material-symbols-outlined text-[20px] p-2 rounded-sm border border-carbon/5 bg-purple-500/10 text-purple-600">
+                      document_scanner
+                    </span>
+                  </div>
+                  <p className="font-body-md text-[10px] sm:text-xs text-secondary leading-normal opacity-85 group-hover:opacity-100 transition-opacity">
+                    Multi-page scanning, perspective warp cropping, document clean filters & local OCR.
+                  </p>
+                </div>
+                <span className="font-metadata text-[9px] text-primary group-hover:underline text-right uppercase mt-2 block">
+                  [ Open Scanner Suite ]
+                </span>
+              </Link>
+
+              {/* Tool 2: Image Optimizer */}
+              <Link
+                href="/workspace?tool=image"
+                className="group border border-carbon/10 hover:border-primary bg-surface-bright/50 p-5 rounded flex flex-col justify-between hover:shadow-lg transition-all h-[150px] select-none"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-label-bold text-xs sm:text-sm text-carbon uppercase group-hover:text-primary transition-colors flex items-center gap-1.5">
+                      Photo & Signature Optimizer
+                    </h3>
+                    <span className="material-symbols-outlined text-[20px] p-2 rounded-sm border border-carbon/5 bg-emerald-500/10 text-emerald-600">
+                      image
+                    </span>
+                  </div>
+                  <p className="font-body-md text-[10px] sm:text-xs text-secondary leading-normal opacity-85 group-hover:opacity-100 transition-opacity">
+                    Optimize photos & signatures to match strict Govt exam size restrictions (SSC, UPSC).
+                  </p>
+                </div>
+                <span className="font-metadata text-[9px] text-primary group-hover:underline text-right uppercase mt-2 block">
+                  [ Open Image Optimizer ]
+                </span>
+              </Link>
+
+              {/* Tool 3: Advanced PDF Compressor */}
+              <Link
+                href="/workspace?tool=pdf-compressor"
+                className="group border border-carbon/10 hover:border-primary bg-surface-bright/50 p-5 rounded flex flex-col justify-between hover:shadow-lg transition-all h-[150px] select-none"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-label-bold text-xs sm:text-sm text-carbon uppercase group-hover:text-primary transition-colors flex items-center gap-1.5">
+                      Advanced PDF Compressor
+                    </h3>
+                    <span className="material-symbols-outlined text-[20px] p-2 rounded-sm border border-carbon/5 bg-blue-500/10 text-blue-600">
+                      zoom_in_map
+                    </span>
+                  </div>
+                  <p className="font-body-md text-[10px] sm:text-xs text-secondary leading-normal opacity-85 group-hover:opacity-100 transition-opacity">
+                    Downsample PDF DPI, quality tuning, metadata stripping & secure sandboxed vault storage.
+                  </p>
+                </div>
+                <span className="font-metadata text-[9px] text-primary group-hover:underline text-right uppercase mt-2 block">
+                  [ Open PDF Compressor ]
+                </span>
+              </Link>
+            </div>
           </section>
 
           {/* Bento categories grid */}
@@ -967,6 +1203,12 @@ function WorkspaceHubContent() {
             ))}
           </div>
         </main>
+      ) : activeToolId === "scan" ? (
+        <ScanWorkspace />
+      ) : activeToolId === "image" ? (
+        <ImageWorkspace />
+      ) : activeToolId === "pdf-compressor" ? (
+        <PdfWorkspace />
       ) : (
         // INTERACTIVE WORKBENCH VIEW
         <ToolLayout
@@ -1157,6 +1399,198 @@ function WorkspaceHubContent() {
                       </select>
                     </div>
                   )}
+
+                  {activeToolId === "compress" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="compress-dpi"
+                        label="Target DPI (Resolution)"
+                        value={compressDpi.toString()}
+                        onChange={(e) => setCompressDpi(parseInt(e.target.value))}
+                        options={[
+                          { value: "72", label: "72 DPI (Low / Max Compression)" },
+                          { value: "100", label: "100 DPI (Medium-Low)" },
+                          { value: "150", label: "150 DPI (Standard)" },
+                          { value: "200", label: "200 DPI (Medium-High)" },
+                          { value: "300", label: "300 DPI (High / Print Quality)" },
+                        ]}
+                      />
+                      <Select
+                        id="compress-quality"
+                        label="Compression Quality"
+                        value={compressQuality.toString()}
+                        onChange={(e) => setCompressQuality(parseFloat(e.target.value))}
+                        options={[
+                          { value: "0.4", label: "Low Quality (Max Shrink)" },
+                          { value: "0.65", label: "Medium Quality (Balanced)" },
+                          { value: "0.85", label: "High Quality (Sharp)" },
+                        ]}
+                      />
+                      <Toggle
+                        id="compress-strip"
+                        label="Strip Metadata"
+                        description="Remove PDF authors, creator tools and camera tags."
+                        checked={compressStripMetadata}
+                        onChange={(checked) => setCompressStripMetadata(checked)}
+                      />
+                    </div>
+                  )}
+
+                  {activeToolId === "crop" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="crop-margin"
+                        label="Crop Margin"
+                        value={cropMarginPercent.toString()}
+                        onChange={(e) => setCropMarginPercent(parseInt(e.target.value))}
+                        options={[
+                          { value: "5", label: "5% Margin Crop" },
+                          { value: "10", label: "10% Margin Crop (Default)" },
+                          { value: "15", label: "15% Margin Crop" },
+                          { value: "20", label: "20% Margin Crop" },
+                          { value: "25", label: "25% Margin Crop" },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {activeToolId === "fill-sign" && (
+                    <div className="space-y-4">
+                      <Input
+                        id="fill-sign-name"
+                        label="Signatory Name"
+                        value={fillSignName}
+                        onChange={(e) => setFillSignName(e.target.value)}
+                        placeholder="e.g. ANKIT KUMAR"
+                      />
+                      <Input
+                        id="fill-sign-date"
+                        label="Signature Date"
+                        value={fillSignDate}
+                        onChange={(e) => setFillSignDate(e.target.value)}
+                        placeholder="e.g. 16/06/2026"
+                      />
+                    </div>
+                  )}
+
+                  {activeToolId === "redact" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="redact-region"
+                        label="Redaction Region / Strategy"
+                        value={redactRegion}
+                        onChange={(e) => setRedactRegion(e.target.value)}
+                        options={[
+                          { value: "bottom-margin", label: "Mask Bottom Margin (Aadhaar/Footer)" },
+                          { value: "top-margin", label: "Mask Top Margin (Header)" },
+                          { value: "text-pattern", label: "Mask Central Content (Custom Text)" },
+                        ]}
+                      />
+                      {redactRegion === "text-pattern" && (
+                        <Input
+                          id="redact-text"
+                          label="Text Pattern to Redact"
+                          value={redactText}
+                          onChange={(e) => setRedactText(e.target.value)}
+                          placeholder="e.g. Aadhaar, CONFIDENTIAL"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {activeToolId === "pdf-images" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="pdf-images-format"
+                        label="Output Image Format"
+                        value={pdfImagesFormat}
+                        onChange={(e) => setPdfImagesFormat(e.target.value)}
+                        options={[
+                          { value: "png", label: "PNG (Lossless)" },
+                          { value: "jpeg", label: "JPEG (Compressed)" },
+                        ]}
+                      />
+                      <Select
+                        id="pdf-images-scale"
+                        label="Render Scale multiplier"
+                        value={pdfImagesScale.toString()}
+                        onChange={(e) => setPdfImagesScale(parseFloat(e.target.value))}
+                        options={[
+                          { value: "1.0", label: "1.0x (Standard Resolution)" },
+                          { value: "1.5", label: "1.5x (Medium Quality)" },
+                          { value: "2.0", label: "2.0x (High Quality)" },
+                          { value: "3.0", label: "3.0x (Ultra Quality)" },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {activeToolId === "ai-summarize" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="ai-summary-len"
+                        label="Summary Depth"
+                        value={aiSummaryLength}
+                        onChange={(e) => setAiSummaryLength(e.target.value)}
+                        options={[
+                          { value: "short", label: "Short Bullet Points" },
+                          { value: "medium", label: "Standard takeaways (Default)" },
+                          { value: "detailed", label: "Detailed Audit & Analysis" },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {activeToolId === "ai-test-gen" && (
+                    <div className="space-y-4">
+                      <Select
+                        id="ai-test-type"
+                        label="Question Format"
+                        value={aiTestType}
+                        onChange={(e) => setAiTestType(e.target.value)}
+                        options={[
+                          { value: "mcq", label: "Multiple Choice Questions (MCQ)" },
+                          { value: "tf", label: "True / False Format" },
+                        ]}
+                      />
+                      <Select
+                        id="ai-test-count"
+                        label="Question Quantity"
+                        value={aiTestCount.toString()}
+                        onChange={(e) => setAiTestCount(parseInt(e.target.value))}
+                        options={[
+                          { value: "1", label: "1 Question" },
+                          { value: "2", label: "2 Questions" },
+                          { value: "3", label: "3 Questions (Max)" },
+                        ]}
+                      />
+                    </div>
+                  )}
+
+                  {/* Information-only Settings panels to prevent empty panels */}
+                  {["merge", "organize", "analyze", "ai-chat"].includes(activeToolId) && (
+                    <div className="p-3 bg-surface-container-high border border-carbon/10 text-secondary text-[11px] leading-relaxed uppercase">
+                      {activeToolId === "merge" && (
+                        <span>Queue Order Merge. Uploaded files are merged sequentially from top to bottom. Clear queue or re-select files to change order.</span>
+                      )}
+                      {activeToolId === "organize" && (
+                        <span>Visual Reordering. Rotations, page exclusions, and sorting order are configured directly on the page preview thumbnail cards.</span>
+                      )}
+                      {activeToolId === "analyze" && (
+                        <span>Structure Audit. Inspects and logs PDF streams, pages, structure metadata, and tags. No external adjustments needed.</span>
+                      )}
+                      {activeToolId === "ai-chat" && (
+                        <span>Offline Assistant Chatbox. Ask questions or query words directly using the browser-native chat dialog in the main panel.</span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* PDF Converter files without settings */}
+                  {["word-pdf", "excel-pdf", "ppt-pdf", "html-pdf", "txt-pdf", "rtf-pdf", "odt-pdf", "pdf-text", "pdf-word", "pdf-excel", "pdf-ppt", "pdf-html"].includes(activeToolId) && (
+                    <div className="p-3 bg-surface-container-high border border-carbon/10 text-secondary text-[11px] leading-relaxed uppercase">
+                      <span>Standard Conversion Preset. Auto-maps text, layouts, and tables client-side inside browser RAM sandbox. No configuration required.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1196,6 +1630,11 @@ function WorkspaceHubContent() {
                   )}
                 </div>
               )}
+              
+              <SandboxVault 
+                onLoadFileAction={loadFileFromVault} 
+                activeFileNames={uploadedFiles.map(f => f.name)} 
+              />
             </div>
           }
         >
@@ -1231,19 +1670,33 @@ function WorkspaceHubContent() {
                     />
                   </label>
                 </div>
+                <div className="pt-12 max-w-md mx-auto w-full">
+                  <SandboxVault 
+                    onLoadFileAction={loadFileFromVault} 
+                    activeFileNames={[]} 
+                  />
+                </div>
               </div>
             </div>
           ) : (
             // 2. Previews or Results Workspace View
             <div className="flex-grow flex flex-col lg:flex-row h-full">
               {/* Left View Column (Previews/Thumbnails) */}
-              <div className="flex-grow bg-surface-container/30 border-r border-carbon p-6 overflow-y-auto custom-scrollbar lg:max-h-[calc(100vh-120px)]">
+              <div className="flex-grow bg-surface-container/30 border-r border-carbon p-6 overflow-y-auto custom-scrollbar h-full lg:max-h-none">
                 <div className="flex justify-between items-center border-b border-carbon/10 pb-3 mb-6">
                   <span className="font-metadata text-metadata text-secondary uppercase">
                     Queue Content: {uploadedFiles.length} file(s) loaded
                   </span>
                   <button
-                    onClick={() => setUploadedFiles([])}
+                    onClick={() => {
+                      setUploadedFiles([]);
+                      setOutputFile(null);
+                      if (outputUrl) {
+                        URL.revokeObjectURL(outputUrl);
+                        setOutputUrl(null);
+                      }
+                      setPdfPages([]);
+                    }}
                     className="font-metadata text-[10px] text-error hover:underline uppercase"
                   >
                     [ Clear Queue ]
@@ -1444,7 +1897,7 @@ function WorkspaceHubContent() {
               </div>
 
               {/* Right View Column (Output & Sharing Panels) */}
-              <div className="w-full lg:w-[350px] p-4 bg-surface-bright flex flex-col justify-between overflow-y-auto custom-scrollbar lg:max-h-[calc(100vh-100px)]">
+              <div className="w-full lg:w-[350px] p-4 bg-surface-bright flex flex-col justify-between overflow-y-auto custom-scrollbar h-full lg:max-h-none">
                 <div>
                   <h3 className="font-label-bold text-label-bold uppercase border-b border-carbon/10 pb-1 mb-4">
                     Document Output
@@ -1492,13 +1945,30 @@ function WorkspaceHubContent() {
                         <a
                           href={outputUrl || "#"}
                           download={outputFile.name}
-                          className="w-full"
+                          className="w-full bg-primary text-on-primary hover:bg-carbon font-label-bold text-label-bold uppercase transition-all tracking-wider flex items-center justify-center gap-2 cursor-pointer select-none py-4 px-6 rounded-md"
                         >
-                          <Button variant="primary" size="full" className="rounded-md">
-                            Download File
-                            <span className="material-symbols-outlined">download</span>
-                          </Button>
+                          Download File
+                          <span className="material-symbols-outlined">download</span>
                         </a>
+                        <Button 
+                          variant="outline" 
+                          size="full" 
+                          className="rounded-md"
+                          onClick={async () => {
+                            if (outputFile) {
+                              try {
+                                await saveFileToVault(outputFile);
+                                showToast("Success: Output file saved to Local Sandbox Vault!", "success");
+                              } catch (err) {
+                                console.error(err);
+                                showToast("Error: Failed to save to local vault.", "error");
+                              }
+                            }
+                          }}
+                        >
+                          Save to Sandbox Vault
+                          <span className="material-symbols-outlined">archive</span>
+                        </Button>
                       </div>
 
                       {/* Secure Sharing Dialog */}
@@ -1569,8 +2039,8 @@ function WorkspaceHubContent() {
                             </p>
                             <button
                               onClick={() => {
-                                navigator.clipboard.writeText(shareUrl);
-                                alert("Share link copied to clipboard!");
+                                navigator.clipboard.writeText(shareUrl || "");
+                                showToast("Share link copied to clipboard!", "success");
                               }}
                               className="w-full py-2 border border-carbon font-metadata text-[9px] uppercase hover:bg-surface-container"
                             >

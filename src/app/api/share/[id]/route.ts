@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
-
-const SHARES_DIR = path.join(process.cwd(), "data", "shares");
+import { passiveCleanup } from "@/utils/shareCleanup";
+import { getShare, saveShare, deleteShare } from "@/utils/db";
 
 export async function GET(
   request: Request,
@@ -14,38 +12,27 @@ export async function GET(
       return NextResponse.json({ error: "SHARE_ID_REQUIRED" }, { status: 400 });
     }
 
-    const filePath = path.join(SHARES_DIR, `${id}.json`);
-    
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch {
+    const payload = await getShare(id);
+    if (!payload) {
       return NextResponse.json({ error: "SHARE_NOT_FOUND" }, { status: 404 });
     }
 
-    const data = await fs.readFile(filePath, "utf8");
-    const payload = JSON.parse(data);
     const now = Date.now();
 
     // Check expiration
     if (payload.expiresAt && now > payload.expiresAt) {
-      await fs.unlink(filePath).catch(() => {});
+      await deleteShare(id);
       return NextResponse.json({ error: "SHARE_EXPIRED" }, { status: 410 });
     }
 
-    // Process download count and limits
-    payload.downloadCount += 1;
-
-    const limitReached = payload.downloadLimit > 0 && payload.downloadCount >= payload.downloadLimit;
-
-    if (limitReached) {
-      // Exceeded download limit, delete immediately from disk
-      await fs.unlink(filePath).catch(() => {});
-      console.log(`[SHARE_LIMIT] Purged file ${id}.json due to limit cap: ${payload.downloadLimit}`);
-    } else {
-      // Write back updated count
-      await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+    // Check if download limit already reached
+    if (payload.downloadLimit > 0 && payload.downloadCount >= payload.downloadLimit) {
+      await deleteShare(id);
+      return NextResponse.json({ error: "SHARE_EXPIRED" }, { status: 410 });
     }
+
+    // Clean up other expired shares on this request to prevent storage accumulation (passive worker)
+    passiveCleanup().catch(err => console.error("[SHARE_CLEANUP_ERROR]", err));
 
     return NextResponse.json({
       ciphertext: payload.ciphertext,
@@ -63,3 +50,50 @@ export async function GET(
     );
   }
 }
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    if (!id) {
+      return NextResponse.json({ error: "SHARE_ID_REQUIRED" }, { status: 400 });
+    }
+
+    const payload = await getShare(id);
+    if (!payload) {
+      return NextResponse.json({ error: "SHARE_NOT_FOUND" }, { status: 404 });
+    }
+
+    const now = Date.now();
+    if (payload.expiresAt && now > payload.expiresAt) {
+      await deleteShare(id);
+      return NextResponse.json({ error: "SHARE_EXPIRED" }, { status: 410 });
+    }
+
+    if (payload.downloadLimit > 0 && payload.downloadCount >= payload.downloadLimit) {
+      await deleteShare(id);
+      return NextResponse.json({ error: "SHARE_EXPIRED" }, { status: 410 });
+    }
+
+    payload.downloadCount += 1;
+    const limitReached = payload.downloadLimit > 0 && payload.downloadCount >= payload.downloadLimit;
+
+    if (limitReached) {
+      await deleteShare(id);
+      console.log(`[SHARE_LIMIT] Purged share ${id} due to limit cap: ${payload.downloadLimit}`);
+    } else {
+      await saveShare(payload);
+    }
+
+    return NextResponse.json({ success: true, downloadCount: payload.downloadCount });
+  } catch (error) {
+    console.error("[SHARE_POST_DOWNLOAD_ERROR]", error);
+    return NextResponse.json(
+      { error: "INTERNAL_SERVER_ERROR", details: (error as Error).message },
+      { status: 500 }
+    );
+  }
+}
+
