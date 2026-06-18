@@ -3,8 +3,6 @@ import type { NextRequest } from "next/server";
 import { verifyNeonToken } from "@/utils/authConfig";
 import { auth } from "@/lib/auth/server";
 
-const NEON_AUTH_URL = "https://ep-bold-frog-ao5uzymm.neonauth.c-2.ap-southeast-1.aws.neon.tech/neondb/auth";
-
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   

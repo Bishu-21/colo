@@ -1,25 +1,26 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
+import { auth } from "@/lib/auth/server";
+import { cookies, headers } from "next/headers";
+import { getNeonAuthJwksUrl } from "@/utils/neonAuthEnv";
 
-const JWKS_URL = "https://ep-bold-frog-ao5uzymm.neonauth.c-2.ap-southeast-1.aws.neon.tech/neondb/auth/.well-known/jwks.json";
-
-let jwksStore: any = null;
+let jwksStore: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 function getJwks() {
   if (!jwksStore) {
-    jwksStore = createRemoteJWKSet(new URL(JWKS_URL));
+    jwksStore = createRemoteJWKSet(new URL(getNeonAuthJwksUrl()));
   }
   return jwksStore;
 }
-
-export const JWT_SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || "dev_only_temporary_secret_key_not_for_production_usage"
-);
 
 export function getJwtSecret() {
   if (!process.env.JWT_SECRET && process.env.NODE_ENV === "production") {
     throw new Error("CRITICAL: JWT_SECRET environment variable is missing in production environment!");
   }
-  return JWT_SECRET_KEY;
+  return process.env.JWT_SECRET || "dev_only_temporary_secret_key_not_for_production_usage";
+}
+
+export function getJwtSecretKey() {
+  return new TextEncoder().encode(getJwtSecret());
 }
 
 export async function verifyNeonToken(token: string) {
@@ -38,7 +39,7 @@ export async function verifyNeonToken(token: string) {
     }
     // Also allow verifying local tokens signed with the secret key for test compatibility
     try {
-      const { payload } = await jwtVerify(token, JWT_SECRET_KEY);
+      const { payload } = await jwtVerify(token, getJwtSecretKey());
       return payload;
     } catch {
       // fallback to JWKS
@@ -54,9 +55,6 @@ export async function verifyNeonToken(token: string) {
     return null;
   }
 }
-
-import { auth } from "@/lib/auth/server";
-import { cookies, headers } from "next/headers";
 
 export async function getSessionUser(): Promise<{ userId: string; role: string } | null> {
   // 1. Try checking the official SDK session first

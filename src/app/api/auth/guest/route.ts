@@ -1,7 +1,7 @@
 import { SignJWT } from "jose";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { JWT_SECRET_KEY } from "@/utils/authConfig";
+import { getJwtSecretKey } from "@/utils/authConfig";
 
 export async function POST() {
   try {
@@ -14,7 +14,7 @@ export async function POST() {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("12h") // shorter expiry for guests
-      .sign(JWT_SECRET_KEY);
+      .sign(getJwtSecretKey());
 
     const cookieStore = await cookies();
     cookieStore.set("session", token, {
