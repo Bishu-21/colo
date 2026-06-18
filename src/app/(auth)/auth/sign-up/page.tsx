@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useActionState, useState } from "react";
+import React, { useActionState, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { signUpWithEmail } from "./actions";
 
-export default function SignUpPage() {
+function SignUpPageContent() {
   const [state, formAction, isPending] = useActionState(signUpWithEmail, null);
   const [guestPending, setGuestPending] = useState(false);
   const [guestError, setGuestError] = useState<string | null>(null);
@@ -171,3 +171,17 @@ export default function SignUpPage() {
     </main>
   );
 }
+
+export default function SignUpPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-8 uppercase font-metadata text-xs gap-3">
+        <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <span>Loading Registration...</span>
+      </div>
+    }>
+      <SignUpPageContent />
+    </Suspense>
+  );
+}
+

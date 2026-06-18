@@ -5,9 +5,10 @@ import { getUser, saveUser } from "@/utils/db";
 import { getSQL } from "@/utils/neonDb";
 
 const isProd = process.env.NODE_ENV === "production";
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 const keySecret = process.env.RAZORPAY_KEY_SECRET || (isProd ? "" : "mock_secret_123");
 
-if (isProd && !process.env.RAZORPAY_KEY_SECRET) {
+if (isProd && !process.env.RAZORPAY_KEY_SECRET && !isBuildPhase) {
   console.warn("[WARN] RAZORPAY_KEY_SECRET is missing in production environment. Webhook verification will fail.");
 }
 

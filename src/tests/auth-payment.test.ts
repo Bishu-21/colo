@@ -1,7 +1,27 @@
+import fs from "fs";
+import path from "path";
+
 // Setup environment variables before any imports to ensure database utility gets the variables at loading time
 (process.env as any).NODE_ENV = "test";
-process.env.DATABASE_URL = "postgresql://neondb_owner:npg_rf2iZEFGg7ce@ep-bold-frog-ao5uzymm.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
 
+try {
+  const envPath = path.resolve(process.cwd(), ".env.local");
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf-8");
+    envContent.split("\n").forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+        const [key, ...valueParts] = trimmed.split("=");
+        const value = valueParts.join("=").replace(/^["']|["']$/g, "");
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    });
+  }
+} catch (err) {
+  console.warn("Failed to load .env.local in test:", err);
+}
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { verifyNeonToken } from "../utils/authConfig";

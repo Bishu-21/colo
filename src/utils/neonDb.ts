@@ -1,8 +1,9 @@
 import { neon } from "@neondatabase/serverless";
 
 const DATABASE_URL = process.env.DATABASE_URL;
+const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
 
-if (!DATABASE_URL) {
+if (!DATABASE_URL && !isBuildPhase) {
   console.warn(
     "[NEON_DB] DATABASE_URL is not set. Database operations will fail."
   );
