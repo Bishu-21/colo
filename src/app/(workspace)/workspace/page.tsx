@@ -96,6 +96,7 @@ const TOOL_CATEGORIES: CategoryGroup[] = [
       { id: "ai-summarize", name: "Summarize PDF", desc: "Generate bullet summaries and key takeaways", icon: "summarize", colorClass: "text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20" },
       { id: "ai-translate", name: "Translate PDF", desc: "Translate text summary to global/regional languages", icon: "translate", colorClass: "text-blue-500 bg-blue-500/10 border-blue-500/20" },
       { id: "ai-test-gen", name: "Test Generator", desc: "Generate MCQ, True/False, or open questions", icon: "quiz", colorClass: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
+      { id: "morpee-story", name: "Morpee Story", desc: "The comic manga origin story of the shape-shifting engine", icon: "auto_stories", colorClass: "text-orange-500 bg-orange-500/10 border-orange-500/20" },
     ]
   }
 ];
@@ -1209,6 +1210,95 @@ function WorkspaceHubContent() {
         <ImageWorkspace />
       ) : activeToolId === "pdf-compressor" ? (
         <PdfWorkspace />
+      ) : activeToolId === "morpee-story" ? (
+        <div className="flex-grow flex flex-col bg-[#fdfaf5] text-carbon md:h-[calc(100vh-64px)] md:overflow-hidden select-none pt-16">
+          <div className="flex-grow flex flex-col lg:flex-row h-full overflow-hidden">
+            {/* Left Column: Comic Image Strip */}
+            <div className="flex-grow bg-[#f7f3eb] p-6 overflow-y-auto custom-scrollbar h-full flex items-center justify-center border-r border-carbon">
+              <div className="max-w-3xl w-full border-4 border-carbon bg-white p-4 rounded shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="flex justify-between items-center border-b-2 border-carbon pb-2 mb-4">
+                  <h2 className="font-display-xl text-lg uppercase tracking-widest font-bold text-carbon">
+                    ⚡ The Origin of Morpee ⚡
+                  </h2>
+                  <Link href="/workspace" className="font-metadata text-[10px] text-secondary hover:text-carbon flex items-center gap-1 uppercase">
+                    <span className="material-symbols-outlined text-[14px]">arrow_back</span>
+                    [ Back ]
+                  </Link>
+                </div>
+                <img
+                  src="/morpee_story.png"
+                  alt="Morpee Brand Story Manga strip"
+                  className="w-full h-auto object-contain border border-carbon"
+                />
+              </div>
+            </div>
+            
+            {/* Right Column: Panel Narration */}
+            <div className="w-full lg:w-[400px] bg-white p-6 overflow-y-auto custom-scrollbar h-full flex flex-col justify-between border-t lg:border-t-0 border-carbon">
+              <div className="space-y-6">
+                <div>
+                  <span className="bg-primary/10 text-primary border border-primary/20 px-2.5 py-0.5 rounded-sm font-metadata text-[9px] uppercase tracking-wider">
+                    Manga Story Node
+                  </span>
+                  <h1 className="font-headline-sm text-headline-sm uppercase text-carbon mt-2 flex items-center gap-2">
+                    <span className="material-symbols-outlined">auto_stories</span>
+                    Why Morpee?
+                  </h1>
+                  <p className="font-body-md text-xs text-secondary mt-1">
+                    Explore the creative history behind the name and technology.
+                  </p>
+                </div>
+
+                <hr className="border-carbon/15" />
+
+                <div className="space-y-6">
+                  {/* Panel 1 */}
+                  <div className="border-2 border-carbon p-4 relative bg-[#fdfaf5] rounded shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="absolute -top-3 left-4 bg-carbon text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold">
+                      Panel 1: The Sterile Past
+                    </div>
+                    <p className="mt-2 font-body-md text-xs leading-relaxed">
+                      Our system started as <strong>COLO</strong>. Power-packed, yes, but the name felt like cold, industrial server colocation storage. It lacked soul.
+                    </p>
+                  </div>
+
+                  {/* Panel 2 */}
+                  <div className="border-2 border-carbon p-4 relative bg-[#fdfaf5] rounded shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="absolute -top-3 left-4 bg-[#05c46b] text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold border border-carbon">
+                      Panel 2: Shift to Morph
+                    </div>
+                    <p className="mt-2 font-body-md text-xs leading-relaxed">
+                      Inspired by shape-shifting tech, the engine <strong>"Morphs"</strong> massive photos and certificates into precise portal constraints in your browser memory.
+                    </p>
+                  </div>
+
+                  {/* Panel 3 */}
+                  <div className="border-2 border-carbon p-4 relative bg-[#fdfaf5] rounded shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">
+                    <div className="absolute -top-3 left-4 bg-[#ffa801] text-white font-label-bold uppercase px-2 py-0.5 text-[8px] tracking-widest font-bold border border-carbon">
+                      Panel 3: The Rupee Suffix
+                    </div>
+                    <p className="mt-2 font-body-md text-xs leading-relaxed">
+                      With the double "ee" ending of the <strong>Rupee</strong>, morpee builds instant phonetic trust with Indian students who save money on registrations.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-carbon/10 text-center">
+                <Link
+                  href="/workspace"
+                  className="w-full inline-flex items-center justify-center py-3 bg-carbon text-white font-label-bold text-xs uppercase hover:bg-primary transition-all rounded shadow-md cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px] mr-1.5">dashboard</span>
+                  Return to Tools Grid
+                </Link>
+                <div className="mt-4 font-metadata text-[9px] text-secondary uppercase tracking-widest font-bold">
+                  morpee.me // active shape-shifting document engine
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
         // INTERACTIVE WORKBENCH VIEW
         <ToolLayout

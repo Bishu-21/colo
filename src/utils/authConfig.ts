@@ -26,7 +26,15 @@ export function getJwtSecretKey() {
 export async function verifyNeonToken(token: string) {
   if (!token) return null;
 
-  // In test/development environment, support verifying mock/test tokens locally
+  // 1. Try verifying with local secret first (covers guest sessions in all environments)
+  try {
+    const { payload } = await jwtVerify(token, getJwtSecretKey());
+    return payload;
+  } catch {
+    // fallback
+  }
+
+  // 2. In test/development environment, support verifying mock/test tokens
   if (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development") {
     if (token.startsWith("mock_")) {
       try {
@@ -37,15 +45,9 @@ export async function verifyNeonToken(token: string) {
         // fallback
       }
     }
-    // Also allow verifying local tokens signed with the secret key for test compatibility
-    try {
-      const { payload } = await jwtVerify(token, getJwtSecretKey());
-      return payload;
-    } catch {
-      // fallback to JWKS
-    }
   }
 
+  // 3. Try remote JWKS verification (for registered Neon Auth sessions)
   try {
     const jwks = getJwks();
     const { payload } = await jwtVerify(token, jwks);

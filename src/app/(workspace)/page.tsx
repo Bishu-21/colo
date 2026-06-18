@@ -173,13 +173,7 @@ export default function LandingPage() {
             Secure hybrid document resizer, scanner, and compressor for government portals (UPSC, SSC, NTA).
           </p>
         </div>
-        <button
-          onClick={() => setStoryOpen(true)}
-          className="flex items-center gap-2 px-5 py-2.5 border-2 border-carbon rounded-full font-label-bold text-xs uppercase hover:bg-surface-container-high transition-all cursor-pointer shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
-        >
-          <span className="material-symbols-outlined text-[18px]">auto_stories</span>
-          <span>Why morpee? Read the Comic Story 📖</span>
-        </button>
+
         <div className="flex flex-wrap justify-center gap-3">
           <Link href={getWorkspaceLink("scan")} prefetch={false} className="px-6 py-3 bg-primary text-surface-bright rounded-full font-label-bold text-xs uppercase hover:bg-muted-teal transition-all flex items-center gap-2 shadow-md cursor-pointer">
             <span>AI Document Scanner</span>
@@ -796,6 +790,15 @@ export default function LandingPage() {
           </div>
         </div>
       )}
+
+      {/* Floating Comic Story FAB */}
+      <button
+        onClick={() => setStoryOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-12 h-12 bg-primary text-white border-2 border-carbon rounded-full flex items-center justify-center hover:bg-carbon hover:text-white hover:scale-105 active:scale-95 transition-all cursor-pointer shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:translate-y-0.5 active:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)]"
+        title="Why morpee? Read the Comic Story 📖"
+      >
+        <span className="material-symbols-outlined text-[24px]">auto_stories</span>
+      </button>
     </main>
   );
 }
